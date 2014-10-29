@@ -18,36 +18,39 @@
 //
 package gov.nasa.jpf.jvm.bytecode;
 
-import gov.nasa.jpf.jvm.KernelState;
-import gov.nasa.jpf.jvm.SystemState;
-import gov.nasa.jpf.jvm.ThreadInfo;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.ThreadInfo;
 
 
 /**
  * Remainder long
  * ..., value1, value2 => ..., result
  */
-public class LREM extends Instruction {
+public class LREM extends Instruction implements JVMInstruction {
 
-  public Instruction execute (SystemState ss, KernelState ks, ThreadInfo th) {
-    long v1 = th.longPop();
-    long v2 = th.longPop();
-
-    if (v1 == 0){
-      return th.createAndThrowException("java.lang.ArithmeticException",
-                                        "division by zero");
-    }
+  @Override
+  public Instruction execute (ThreadInfo ti) {
+    StackFrame frame = ti.getModifiableTopFrame();
     
-    th.longPush(v2 % v1);
+    long v1 = frame.popLong();
+    long v2 = frame.popLong();
+    
+    long r = v2 % v1;
+    
+    frame.pushLong(r);
 
-    return getNext(th);
+    return getNext(ti);
   }
 
+  @Override
   public int getByteCode () {
     return 0x71;
   }
   
-  public void accept(InstructionVisitor insVisitor) {
+  @Override
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
   }
 }

@@ -18,29 +18,36 @@
 //
 package gov.nasa.jpf.jvm.bytecode;
 
-import gov.nasa.jpf.jvm.KernelState;
-import gov.nasa.jpf.jvm.SystemState;
-import gov.nasa.jpf.jvm.ThreadInfo;
-import gov.nasa.jpf.jvm.Types;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.ThreadInfo;
+import gov.nasa.jpf.vm.Types;
 
 
 /**
  * Negate double
  * ..., value => ..., result
  */
-public class DNEG extends Instruction {
+public class DNEG extends Instruction implements JVMInstruction {
 
-  public Instruction execute (SystemState ss, KernelState ks, ThreadInfo th) {
-    th.longPush(Types.doubleToLong(-Types.longToDouble(th.longPop())));
-
-    return getNext(th);
+  @Override
+  public Instruction execute (ThreadInfo ti) {
+    StackFrame frame = ti.getModifiableTopFrame();
+    
+    double v = frame.popDouble();
+    frame.pushDouble(-v);
+    
+    return getNext(ti);
   }
 
+  @Override
   public int getByteCode () {
     return 0x77;
   }
   
-  public void accept(InstructionVisitor insVisitor) {
+  @Override
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
   }
 }

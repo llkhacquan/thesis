@@ -1,10 +1,13 @@
 package gov.nasa.jpf.test.mc.basic;
 
-import gov.nasa.jpf.jvm.MJIEnv;
+import gov.nasa.jpf.annotation.MJI;
+import gov.nasa.jpf.vm.MJIEnv;
+import gov.nasa.jpf.vm.NativePeer;
 
-public class JPF_gov_nasa_jpf_test_mc_basic_AttrsTest {
+public class JPF_gov_nasa_jpf_test_mc_basic_AttrsTest extends NativePeer {
 
-  public static double goNative__DI__D (MJIEnv env, int objRef, double d, int i) {
+  @MJI
+  public double goNative__DI__D (MJIEnv env, int objRef, double d, int i) {
 
     Object[] attrs = env.getArgAttributes();
 

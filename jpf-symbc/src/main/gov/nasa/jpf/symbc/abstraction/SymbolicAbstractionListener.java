@@ -21,25 +21,9 @@ package gov.nasa.jpf.symbc.abstraction;
 import gov.nasa.jpf.Config;
 import gov.nasa.jpf.JPF;
 import gov.nasa.jpf.PropertyListenerAdapter;
-import gov.nasa.jpf.jvm.ChoiceGenerator;
-import gov.nasa.jpf.jvm.ClassInfo;
-import gov.nasa.jpf.jvm.DynamicArea;
-import gov.nasa.jpf.jvm.DynamicElementInfo;
-import gov.nasa.jpf.jvm.ElementInfo;
-import gov.nasa.jpf.jvm.FieldInfo;
-import gov.nasa.jpf.jvm.JVM;
-import gov.nasa.jpf.jvm.MJIEnv;
-import gov.nasa.jpf.jvm.MethodInfo;
-import gov.nasa.jpf.jvm.ReferenceFieldInfo;
-import gov.nasa.jpf.jvm.StackFrame;
-import gov.nasa.jpf.jvm.SystemState;
-import gov.nasa.jpf.jvm.ThreadInfo;
-import gov.nasa.jpf.jvm.Types;
-import gov.nasa.jpf.jvm.Verify;
 import gov.nasa.jpf.jvm.bytecode.IRETURN;
-import gov.nasa.jpf.jvm.bytecode.Instruction;
-import gov.nasa.jpf.jvm.bytecode.InvokeInstruction;
-import gov.nasa.jpf.jvm.bytecode.ReturnInstruction;
+import gov.nasa.jpf.jvm.bytecode.JVMInvokeInstruction;
+import gov.nasa.jpf.jvm.bytecode.JVMReturnInstruction;
 import gov.nasa.jpf.jvm.bytecode.VirtualInvocation;
 import gov.nasa.jpf.report.ConsolePublisher;
 import gov.nasa.jpf.report.Publisher;
@@ -53,6 +37,18 @@ import gov.nasa.jpf.symbc.numeric.PCChoiceGenerator;
 import gov.nasa.jpf.symbc.numeric.PathCondition;
 import gov.nasa.jpf.symbc.sequences.SequenceChoiceGenerator;
 import gov.nasa.jpf.util.Pair;
+import gov.nasa.jpf.vm.ChoiceGenerator;
+import gov.nasa.jpf.vm.ClassInfo;
+import gov.nasa.jpf.vm.FieldInfo;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.MJIEnv;
+import gov.nasa.jpf.vm.MethodInfo;
+import gov.nasa.jpf.vm.ReferenceFieldInfo;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.SystemState;
+import gov.nasa.jpf.vm.ThreadInfo;
+import gov.nasa.jpf.vm.Types;
+import gov.nasa.jpf.vm.VM;
 
 import java.io.BufferedWriter;
 import java.io.FileWriter;
@@ -90,12 +86,12 @@ import java.util.Vector;
  * 		0. Note down the initialState (first time when an instruction is invoked)
  * 		lastRecordedState = initialState
  *
- * 		1. At instructionExecuted->InvokeInstruction, remember invoked method with
+ * 		1. At instructionExecuted->JVMInvokeInstruction, remember invoked method with
  * 		SequenceChoiceGenerator. Same as SymbolicSequenceListener
  *
  * 		2. On stateBacktracked, update lastRecordedState = getAbstractedState(...)
  *
- * 		3. On instructionExecuted->ReturnInstruction,
+ * 		3. On instructionExecuted->JVMReturnInstruction,
  * 		newState = getAbstractedState(...)
  * 		add the edge lastRecordedState-----lastInvokedMethod----->newState
  * 		update lastRecordedState = newState
@@ -112,10 +108,10 @@ import java.util.Vector;
  * 		0. Note down the initial state (first time when an instruction is invoked)
  * 		lastRecordedState = initialState
  *
- * 		1. At instructionExecuted->InvokeInstruction, remember invoked method with
+ * 		1. At instructionExecuted->JVMInvokeInstruction, remember invoked method with
  * 		SequenceChoiceGenerator. Same as SymbolicSequenceListener
  *
- * 		2. On instructionExecuted->ReturnInstruction,
+ * 		2. On instructionExecuted->JVMReturnInstruction,
  * 		newState = getAbstractedState(...)
  * 		update lastRecordedState = newState
  * 		add the edge initialState-----lastInvokedSequence----->lastRecordedState
@@ -188,12 +184,14 @@ public class SymbolicAbstractionListener extends PropertyListenerAdapter{
 	}
 
 	//--- the SearchListener interface
+	@Override
 	public void searchStarted(Search search) {
 		osm = OSM.getSingletonOSMInstance(); // singleton instance
 		osm.beginDot_method();
 		osm.beginDot_sequence();
 	}
 
+	@Override
 	public void searchFinished(Search search) {
 		osm.endDot_method();
 		osm.endDot_sequence();
@@ -213,8 +211,9 @@ public class SymbolicAbstractionListener extends PropertyListenerAdapter{
 	 *  Update sequence part of OSM
 	 *
 	 */
+	@Override
 	public void propertyViolated (Search search){
-		JVM vm = search.getVM();
+		VM vm = search.getVM();
 		SystemState ss = vm.getSystemState();
 		ChoiceGenerator cg = vm.getChoiceGenerator();
 
@@ -280,9 +279,10 @@ public class SymbolicAbstractionListener extends PropertyListenerAdapter{
 	 * For sequence part of OSM, we have nothing to do.
 	 *
 	 */
+	@Override
 	public void stateBacktracked(Search search){
 
-		JVM vm = search.getVM();
+		VM vm = search.getVM();
 		Instruction insn = vm.getChoiceGenerator().getInsn();
 		SystemState ss = vm.getSystemState();
 		ThreadInfo ti = vm.getChoiceGenerator().getThreadInfo();
@@ -309,16 +309,17 @@ public class SymbolicAbstractionListener extends PropertyListenerAdapter{
 
 
 	//--- the VMListener interface
-	public void instructionExecuted(JVM vm) {
+	@Override
+	public void instructionExecuted(VM vm, ThreadInfo currentThread, Instruction nextInstruction, Instruction executedInstruction) {
 
 		if (!vm.getSystemState().isIgnored()) {
-			Instruction insn = vm.getLastInstruction();
+			Instruction insn = executedInstruction;
 			SystemState ss = vm.getSystemState();
-			ThreadInfo ti = vm.getLastThreadInfo();
+			ThreadInfo ti = currentThread;
 
 
-			if (insn instanceof InvokeInstruction && insn.isCompleted(ti)) {
-				InvokeInstruction md = (InvokeInstruction) insn;
+			if (insn instanceof JVMInvokeInstruction && insn.isCompleted(ti)) {
+				JVMInvokeInstruction md = (JVMInvokeInstruction) insn;
 				String methodName = md.getInvokedMethodName();
 				// get number of arguments.
 				int numberOfArgs = md.getArgumentValues(ti).length;
@@ -326,7 +327,7 @@ public class SymbolicAbstractionListener extends PropertyListenerAdapter{
 				Config conf = ti.getVM().getConfig(); // Corina: added fix
 				//neha: changed invoked method to the full name
 				if ((BytecodeUtils.isMethodSymbolic(conf, mi.getFullName(), numberOfArgs, null))){
-					// if it is InvokeInstruction, just keep track of what
+					// if it is JVMInvokeInstruction, just keep track of what
 					// method got invoked in the SequenceChoiceGenerator.
 					// if it is the first time, record the initial state
 
@@ -385,7 +386,7 @@ public class SymbolicAbstractionListener extends PropertyListenerAdapter{
 			// get the sequence
 			// update last recorded state for sequence
 			// update sequence part of OSM
-			else if (insn instanceof ReturnInstruction){
+			else if (insn instanceof JVMReturnInstruction){
 				MethodInfo mi = insn.getMethodInfo();
 				String methodName = mi.getName();
 				String longName = mi.getLongName();
@@ -397,8 +398,8 @@ public class SymbolicAbstractionListener extends PropertyListenerAdapter{
 
 					// get the abstracted state caused by method return
 					String abstractedState = null;
-					ReturnInstruction returnInstruction = (ReturnInstruction)insn;
-					int ref = returnInstruction.getReturnFrame().getThis();
+					JVMReturnInstruction JVMReturnInstruction = (JVMReturnInstruction)insn;
+					int ref = JVMReturnInstruction.getReturnFrame().getThis();
 					MJIEnv env = ti.getEnv();
 					abstractedState = getAbstractedState(env, ref);
 
@@ -465,6 +466,7 @@ public class SymbolicAbstractionListener extends PropertyListenerAdapter{
 	 * explores the SequenceChoiceGenerator chain
 	 * and gets the last one in the chain.
 	 */
+	
 	private String getLastInvokedMethod(ChoiceGenerator [] cgs){
 		// explore the choice generator chain - unique for a given path.
 		ChoiceGenerator cg = null;

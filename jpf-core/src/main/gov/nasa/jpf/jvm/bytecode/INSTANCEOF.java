@@ -18,17 +18,21 @@
 //
 package gov.nasa.jpf.jvm.bytecode;
 
-import gov.nasa.jpf.jvm.KernelState;
-import gov.nasa.jpf.jvm.SystemState;
-import gov.nasa.jpf.jvm.ThreadInfo;
-import gov.nasa.jpf.jvm.Types;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.ClassInfo;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.LoadOnJPFRequired;
+import gov.nasa.jpf.vm.MJIEnv;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.ThreadInfo;
+import gov.nasa.jpf.vm.Types;
 
 
 /**
  * Determine if object is of given type
  * ..., objectref => ..., result
  */
-public class INSTANCEOF extends Instruction {
+public class INSTANCEOF extends Instruction implements JVMInstruction {
   private String type;
 
 
@@ -39,18 +43,36 @@ public class INSTANCEOF extends Instruction {
     type = Types.getTypeSignature(typeName, false);
   }
 
-  public Instruction execute (SystemState ss, KernelState ks, ThreadInfo th) {
-    int objref = th.pop();
+  public Instruction execute (ThreadInfo ti) {
+    if(Types.isReferenceSignature(type)) {
+      String t;
+      if(Types.isArray(type)) {
+        // retrieve the component terminal
+        t = Types.getComponentTerminal(type);
+      } else {
+        t = type;
+      }
 
-    if (objref == -1) {
-      th.push(0, false);
-    } else if (ks.heap.get(objref).instanceOf(type)) {
-      th.push(1, false);
-    } else {
-      th.push(0, false);
+      // resolve the referenced class
+      try {
+        ti.resolveReferencedClass(t);
+      } catch(LoadOnJPFRequired lre) {
+        return ti.getPC();
+      }
     }
 
-    return getNext(th);
+    StackFrame frame = ti.getModifiableTopFrame();
+    int objref = frame.pop();
+
+    if (objref == MJIEnv.NULL) {
+      frame.push(0);
+    } else if (ti.getElementInfo(objref).instanceOf(type)) {
+      frame.push(1);
+    } else {
+      frame.push(0);
+    }
+
+    return getNext(ti);
   }
   
   public String getType() {
@@ -65,7 +87,7 @@ public class INSTANCEOF extends Instruction {
     return 0xC1;
   }
   
-  public void accept(InstructionVisitor insVisitor) {
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
   }
 }

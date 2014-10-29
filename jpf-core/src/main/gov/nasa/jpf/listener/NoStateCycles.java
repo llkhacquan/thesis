@@ -20,9 +20,9 @@ package gov.nasa.jpf.listener;
 
 import gov.nasa.jpf.Config;
 import gov.nasa.jpf.PropertyListenerAdapter;
-import gov.nasa.jpf.jvm.JVM;
-import gov.nasa.jpf.jvm.SystemState;
 import gov.nasa.jpf.search.Search;
+import gov.nasa.jpf.vm.VM;
+import gov.nasa.jpf.vm.SystemState;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -52,6 +52,7 @@ public class NoStateCycles extends PropertyListenerAdapter {
       config.throwException("search.class must be gov.nasa.jpf.search.DFSearch");   // Or any class which does a depth first search.
   }
 
+  @Override
    public void stateAdvanced(Search search) {
      SystemState state;
      Integer id;
@@ -74,6 +75,7 @@ public class NoStateCycles extends PropertyListenerAdapter {
      m_inStack.add(id);
    }
 
+  @Override
    public void stateBacktracked(Search search) {
      Integer id;
      int pos;
@@ -86,10 +88,12 @@ public class NoStateCycles extends PropertyListenerAdapter {
        m_stackPos = -1;
    }
 
-   public boolean check(Search search, JVM vm) {
+  @Override
+   public boolean check(Search search, VM vm) {
      return(m_cycleFound < 0);
    }
 
+   @Override
    public void reset () {
      m_cycleFound = -1;
    }

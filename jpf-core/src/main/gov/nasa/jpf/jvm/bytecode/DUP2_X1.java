@@ -18,27 +18,30 @@
 //
 package gov.nasa.jpf.jvm.bytecode;
 
-import gov.nasa.jpf.jvm.KernelState;
-import gov.nasa.jpf.jvm.SystemState;
-import gov.nasa.jpf.jvm.ThreadInfo;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.ThreadInfo;
 
 
 /**
  * DOCUMENT ME!
  */
-public class DUP2_X1 extends Instruction {
+public class DUP2_X1 extends Instruction implements JVMInstruction {
 
-  public Instruction execute (SystemState ss, KernelState ks, ThreadInfo th) {
-    th.dup2_x1();
+  public Instruction execute (ThreadInfo ti) {
+    StackFrame frame = ti.getModifiableTopFrame();
+    
+    frame.dup2_x1();
 
-    return getNext(th);
+    return getNext(ti);
   }
 
   public int getByteCode () {
     return 0x5D;
   }
   
-  public void accept(InstructionVisitor insVisitor) {
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
   }
 }

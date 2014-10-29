@@ -18,14 +18,19 @@
 //
 package gov.nasa.jpf.symbc.numeric;
 
-import gov.nasa.jpf.jvm.IntChoiceGenerator;
-import gov.nasa.jpf.jvm.choice.IntIntervalGenerator;
-//import gov.nasa.jpf.symbc.SymbolicInstructionFactory;
+import java.util.HashMap;
+import java.util.HashSet;
+
+import gov.nasa.jpf.vm.IntChoiceGenerator;
+import gov.nasa.jpf.vm.choice.IntIntervalGenerator;
+
+
 
 
 public class PCChoiceGenerator extends IntIntervalGenerator {
 
-	PathCondition[] PC;
+	//protected PathCondition[] PC;
+	protected HashMap<Integer, PathCondition> PC;
 	boolean isReverseOrder;
 
 	int offset; // to be used in the CFG
@@ -44,10 +49,25 @@ public class PCChoiceGenerator extends IntIntervalGenerator {
 	@SuppressWarnings("deprecation")
 	public PCChoiceGenerator(int size) {
 		super(0, size - 1);
-		PC = new PathCondition[size];
+		PC = new HashMap<Integer, PathCondition>();
+		for(int i = 0; i < size; i++)
+			PC.put(i, new PathCondition());
 		isReverseOrder = false;
 	}
-
+	
+	public PCChoiceGenerator(int min, int max) {
+		this(min, max, 1);
+	}
+	
+	@SuppressWarnings("deprecation")
+	public PCChoiceGenerator(int min, int max, int delta) {
+		super(min, max, delta);
+		PC = new HashMap<Integer, PathCondition>();
+		for(int i = min; i <= max; i += delta)
+			PC.put(i, new PathCondition());
+		isReverseOrder = false;
+	}
+	
 	/*
 	 * If reverseOrder is true, the PCChoiceGenerator
 	 * explores paths in the opposite order used by
@@ -57,7 +77,9 @@ public class PCChoiceGenerator extends IntIntervalGenerator {
 	@SuppressWarnings("deprecation")
 	public PCChoiceGenerator(int size, boolean reverseOrder) {
 		super(0, size - 1, reverseOrder ? -1 : 1);
-		PC = new PathCondition[size];
+		PC = new HashMap<Integer, PathCondition>();
+		for(int i = 0; i < size; i++)
+			PC.put(i, new PathCondition());
 		isReverseOrder = reverseOrder;
 	}
 
@@ -67,15 +89,20 @@ public class PCChoiceGenerator extends IntIntervalGenerator {
 
 	// sets the PC constraints for the current choice
 	public void setCurrentPC(PathCondition pc) {
-		PC[getNextChoice()] = pc;
+		PC.put(getNextChoice(),pc);
 
 	}
+	// sets the PC constraints for the specified choice
+	public void setPC(PathCondition pc, int choice) {
+			PC.put(new Integer(choice),pc);
 
+		}
+	
 	// returns the PC constraints for the current choice
 	public PathCondition getCurrentPC() {
 		PathCondition pc;
 
-		pc = PC[getNextChoice()];
+		pc = PC.get(getNextChoice());
 		if (pc != null) {
 			return pc.make_copy();
 		} else {
@@ -84,7 +111,7 @@ public class PCChoiceGenerator extends IntIntervalGenerator {
 	}
 
 	public IntChoiceGenerator randomize() {
-		return new PCChoiceGenerator(PC.length, random.nextBoolean());
+		return new PCChoiceGenerator(PC.size(), random.nextBoolean());
 	}
 
 	public void setNextChoice(int nextChoice){

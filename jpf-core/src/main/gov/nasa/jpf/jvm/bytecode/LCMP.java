@@ -18,24 +18,30 @@
 //
 package gov.nasa.jpf.jvm.bytecode;
 
-import gov.nasa.jpf.jvm.KernelState;
-import gov.nasa.jpf.jvm.SystemState;
-import gov.nasa.jpf.jvm.ThreadInfo;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.ThreadInfo;
 
 
 /**
  * Compare long
  * ..., value1, value2 => ..., result
  */
-public class LCMP extends Instruction {
+public class LCMP extends Instruction implements JVMInstruction {
 
-  public Instruction execute (SystemState ss, KernelState ks, ThreadInfo th) {
-    long v1 = th.longPop();
-    long v2 = th.longPop();
+  @Override
+  public Instruction execute (ThreadInfo ti) {
+    StackFrame frame = ti.getModifiableTopFrame();
+    
+    long v1 = frame.popLong();
+    long v2 = frame.popLong();
+    
+    int condVal = conditionValue( v1, v2);
+    
+    frame.push(condVal);
 
-    th.push(conditionValue(v1, v2), false);
-
-    return getNext(th);
+    return getNext(ti);
   }
   
   protected int conditionValue(long v1, long v2) {
@@ -48,11 +54,13 @@ public class LCMP extends Instruction {
       }
   }
 
+  @Override
   public int getByteCode () {
     return 0x94;
   }
   
-  public void accept(InstructionVisitor insVisitor) {
+  @Override
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
   }
 }

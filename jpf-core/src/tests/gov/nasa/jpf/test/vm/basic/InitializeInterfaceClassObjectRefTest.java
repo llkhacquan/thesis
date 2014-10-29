@@ -18,15 +18,16 @@
 //
 package gov.nasa.jpf.test.vm.basic;
 
-import gov.nasa.jpf.jvm.ClassInfo;
 import gov.nasa.jpf.util.test.TestJPF;
+import gov.nasa.jpf.vm.ClassInfo;
+import gov.nasa.jpf.vm.ClassLoaderInfo;
 
 import org.junit.Test;
 
 /*
- * JVM.registerStartupClass must be kept in sync with ClassInfo.registerClass.
+ * VM.registerStartupClass must be kept in sync with ClassInfo.registerClass.
  * This test ensures that the interfaces of the main class are registered 
- * properly.  The old JVM.registerStartupClass code wasn't initializing the
+ * properly.  The old VM.registerStartupClass code wasn't initializing the
  * class object of the interfaces.
  */
 public class InitializeInterfaceClassObjectRefTest extends TestJPF implements InitializeInterfaceClassObjectRefTestInterface
@@ -34,14 +35,14 @@ public class InitializeInterfaceClassObjectRefTest extends TestJPF implements In
    @Test
    public void test()
    {
-      if (verifyUnhandledExceptionDetails(RuntimeException.class.getName(), "This test throws an expected exception.", "+log.finest+=,gov.nasa.jpf.jvm.ClassInfo"))
+      if (verifyUnhandledExceptionDetails(RuntimeException.class.getName(), "This test throws an expected exception.", "+log.finest+=,gov.nasa.jpf.vm.ClassInfo"))
       {
          // Throw an exception to avoid backtracking.  Backtracking will wipe out the class object ref.
          throw new RuntimeException("This test throws an expected exception.");
       }
       else
       {
-         ClassInfo ci = ClassInfo.getResolvedClassInfo(InitializeInterfaceClassObjectRefTestInterface.class.getName());
+         ClassInfo ci = ClassLoaderInfo.getCurrentResolvedClassInfo( InitializeInterfaceClassObjectRefTestInterface.class.getName());
          
          if (ci.getClassObjectRef() < 0)
             throw new AssertionError("ci.getClassObjectRef() < 0 : " + ci.getClassObjectRef());

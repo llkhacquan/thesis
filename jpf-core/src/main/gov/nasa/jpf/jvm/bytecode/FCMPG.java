@@ -18,25 +18,28 @@
 //
 package gov.nasa.jpf.jvm.bytecode;
 
-import gov.nasa.jpf.jvm.KernelState;
-import gov.nasa.jpf.jvm.SystemState;
-import gov.nasa.jpf.jvm.ThreadInfo;
-import gov.nasa.jpf.jvm.Types;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.ThreadInfo;
+import gov.nasa.jpf.vm.Types;
 
 
 /**
  * Compare float
  * ..., value1, value2 => ..., result
  */
-public class FCMPG extends Instruction {
+public class FCMPG extends Instruction implements JVMInstruction {
 
-  public Instruction execute (SystemState ss, KernelState ks, ThreadInfo th) {
-    float v1 = Types.intToFloat(th.pop());
-    float v2 = Types.intToFloat(th.pop());
+  public Instruction execute (ThreadInfo ti) {
+    StackFrame frame = ti.getModifiableTopFrame();
     
-    th.push(conditionValue(v1, v2), false);
+    float v1 = frame.popFloat();
+    float v2 = frame.popFloat();
+    
+    frame.push(conditionValue(v1, v2), false);
 
-    return getNext(th);
+    return getNext(ti);
   }
   
   protected int conditionValue(float v1, float v2) {
@@ -55,7 +58,7 @@ public class FCMPG extends Instruction {
     return 0x96;
   }
   
-  public void accept(InstructionVisitor insVisitor) {
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
   }
 }

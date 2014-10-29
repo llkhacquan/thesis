@@ -1,10 +1,12 @@
 syntax: glob
 
+local.properties
 .version
 nbproject/private/*
 build/*
 dist/*
 tmp/*
+trace
 activity*.png
 *.class
 *~

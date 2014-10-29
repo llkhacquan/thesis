@@ -18,32 +18,36 @@
 //
 package gov.nasa.jpf.jvm.bytecode;
 
-import gov.nasa.jpf.jvm.KernelState;
-import gov.nasa.jpf.jvm.SystemState;
-import gov.nasa.jpf.jvm.ThreadInfo;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.MJIEnv;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.ThreadInfo;
 
 
 /**
  * Throw exception or error
  * ..., objectref => objectref
  */
-public class ATHROW extends Instruction {
+public class ATHROW extends Instruction implements JVMInstruction {
 
-  public Instruction execute (SystemState ss, KernelState ks, ThreadInfo th) {
-    int objref = th.pop();
+  public Instruction execute (ThreadInfo ti) {
+    StackFrame frame = ti.getModifiableTopFrame();
 
-    if (objref == -1) {
-      return th.createAndThrowException("java.lang.NullPointerException");
+    int objref = frame.pop();
+
+    if (objref == MJIEnv.NULL) {
+      return ti.createAndThrowException("java.lang.NullPointerException");
     }
 
-    return th.throwException(objref);
+    return ti.throwException(objref);
   }
 
   public int getByteCode () {
     return 0xBF;
   }
   
-  public void accept(InstructionVisitor insVisitor) {
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
   }
 }

@@ -19,12 +19,12 @@
 package gov.nasa.jpf.test.mc.threads;
 
 import gov.nasa.jpf.ListenerAdapter;
-import gov.nasa.jpf.jvm.JVM;
-import gov.nasa.jpf.jvm.ThreadChoiceGenerator;
-import gov.nasa.jpf.jvm.ThreadInfo;
-import gov.nasa.jpf.jvm.Verify;
 import gov.nasa.jpf.search.Search;
 import gov.nasa.jpf.util.test.TestJPF;
+import gov.nasa.jpf.vm.VM;
+import gov.nasa.jpf.vm.ThreadChoiceGenerator;
+import gov.nasa.jpf.vm.ThreadInfo;
+import gov.nasa.jpf.vm.Verify;
 
 import org.junit.Test;
 
@@ -94,7 +94,7 @@ public class MinimizePreemptionTest extends TestJPF {
   public static class Listener extends ListenerAdapter {
 
     int getPreemptions (Search search){
-      JVM vm = search.getVM();
+      VM vm = search.getVM();
       int n=0;
       ThreadChoiceGenerator cg = vm.getLastChoiceGeneratorOfType(ThreadChoiceGenerator.class);
       
@@ -119,6 +119,7 @@ public class MinimizePreemptionTest extends TestJPF {
     }
     
     // for the next queued state - preemption count should never decrease
+    @Override
     public void stateRestored(Search search){
       int nPreemptions = getPreemptions(search);
       System.out.println("   explore state with " + nPreemptions + " preemptions");

@@ -18,26 +18,28 @@
 //
 package gov.nasa.jpf.jvm.bytecode;
 
-import gov.nasa.jpf.jvm.KernelState;
-import gov.nasa.jpf.jvm.SystemState;
-import gov.nasa.jpf.jvm.ThreadInfo;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.ThreadInfo;
 
 
 /**
  * Load long from local variable
  * ... => ..., value
  */
-public class LLOAD extends LocalVariableInstruction {
+public class LLOAD extends JVMLocalVariableInstruction {
 
   public LLOAD(int localVarIndex){
     super(localVarIndex);
   }
 
-  public Instruction execute (SystemState ss, KernelState ks, ThreadInfo th) {
-    //th.longPush(th.getLongLocalVariable(index));
-    th.pushLongLocal(index);
+  @Override
+  public Instruction execute (ThreadInfo ti) {
+    StackFrame frame = ti.getModifiableTopFrame();
+    
+    frame.pushLongLocal(index);
 
-    return getNext(th);
+    return getNext(ti);
   }
 
   public int getLength() {
@@ -63,7 +65,7 @@ public class LLOAD extends LocalVariableInstruction {
     return "lload";
   }
   
-  public void accept(InstructionVisitor insVisitor) {
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
   }
 }

@@ -19,12 +19,12 @@
 package gov.nasa.jpf.listener;
 
 import gov.nasa.jpf.ListenerAdapter;
-import gov.nasa.jpf.jvm.ClassInfo;
-import gov.nasa.jpf.jvm.JVM;
-import gov.nasa.jpf.jvm.MethodInfo;
-import gov.nasa.jpf.jvm.ThreadInfo;
-import gov.nasa.jpf.jvm.bytecode.Instruction;
-import gov.nasa.jpf.jvm.bytecode.InvokeInstruction;
+import gov.nasa.jpf.jvm.bytecode.JVMInvokeInstruction;
+import gov.nasa.jpf.vm.ClassInfo;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.VM;
+import gov.nasa.jpf.vm.MethodInfo;
+import gov.nasa.jpf.vm.ThreadInfo;
 
 /**
  * this isn't yet a useful tool, but it shows how to track method calls with
@@ -32,13 +32,12 @@ import gov.nasa.jpf.jvm.bytecode.InvokeInstruction;
  */
 public class CallMonitor extends ListenerAdapter {
 
-  public void instructionExecuted (JVM vm) {
-    Instruction insn = vm.getLastInstruction();
-    ThreadInfo ti = vm.getLastThreadInfo();
+  @Override
+  public void instructionExecuted (VM vm, ThreadInfo ti, Instruction nextInsn, Instruction executedInsn) {
     
-    if (insn instanceof InvokeInstruction) {
-      if (insn.isCompleted(ti) && !ti.isInstructionSkipped()) {
-        InvokeInstruction call = (InvokeInstruction)insn;
+    if (executedInsn instanceof JVMInvokeInstruction) {
+      if (executedInsn.isCompleted(ti) && !ti.isInstructionSkipped()) {
+        JVMInvokeInstruction call = (JVMInvokeInstruction)executedInsn;
         MethodInfo mi = call.getInvokedMethod();
         Object[] args = call.getArgumentValues(ti);
         ClassInfo ci = mi.getClassInfo();

@@ -18,8 +18,15 @@
 //
 package java.io;
 
+import java.nio.channels.FileChannel;
+
+import java.io.FileDescriptor;
 /**
  * MJI model class for java.io.RandomAccessFile
+ * This class cannot yet handle File I/O correctly
+ * Some work about the use of RandomAccessFile can be 
+ * found here : https://bitbucket.org/pfjeau/jpf_for_nanohttpd/src/8f880ee27410026c69cf37f1904b159965d1576e/?at=raf-progress
+ * Another way to implement all the missing features is to fix the jpf-bfs project in order to handle file I/O
  *
  * @author Owen O'Malley
  */
@@ -31,6 +38,11 @@ public class RandomAccessFile {
     isOpen = true;
     isReadOnly = "r".equals(permissions);
     setDataMap();
+  }
+
+  public RandomAccessFile(String name, String permissions
+                         ) throws FileNotFoundException {
+    this(new File(name), permissions);
   }
 
   public void seek(long posn) throws IOException {
@@ -58,6 +70,14 @@ public class RandomAccessFile {
 
   public void close() throws IOException {
     isOpen = false;
+  }
+
+  public FileChannel getChannel(){
+    return null;//TODO
+  }
+
+  public FileDescriptor getFD(){
+    return null;//TODO
   }
 
   private static class DataRepresentation {

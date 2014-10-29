@@ -18,12 +18,15 @@
 //
 package gov.nasa.jpf.jvm.bytecode;
 
-import gov.nasa.jpf.jvm.ClassInfo;
-import gov.nasa.jpf.jvm.Heap;
-import gov.nasa.jpf.jvm.KernelState;
-import gov.nasa.jpf.jvm.SystemState;
-import gov.nasa.jpf.jvm.ThreadInfo;
-import gov.nasa.jpf.jvm.Types;
+import gov.nasa.jpf.vm.ClassInfo;
+import gov.nasa.jpf.vm.ClassLoaderInfo;
+import gov.nasa.jpf.vm.ElementInfo;
+import gov.nasa.jpf.vm.Heap;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.LoadOnJPFRequired;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.ThreadInfo;
+import gov.nasa.jpf.vm.Types;
 
 
 /**
@@ -36,35 +39,47 @@ public class ANEWARRAY extends NewArrayInstruction {
     type = Types.getTypeSignature(typeDescriptor, true);
   }
 
-  public Instruction execute (SystemState ss, KernelState ks, ThreadInfo ti) {
-    Heap heap = ti.getHeap();
-    arrayLength = ti.pop();
-
-    if (arrayLength < 0){
-      return ti.createAndThrowException("java.lang.NegativeArraySizeException");
+  public Instruction execute (ThreadInfo ti) {
+    // resolve the component class first
+    String compType = Types.getTypeName(type);
+    if(Types.isReferenceSignature(type)) {
+      try {
+        ti.resolveReferencedClass(compType);
+      } catch(LoadOnJPFRequired lre) {
+        return ti.getPC();
+      }
     }
 
     // there is no clinit for array classes, but we still have  to create a class object
     // since its a builtin class, we also don't have to bother with NoClassDefFoundErrors
     String clsName = "[" + type;
-    ClassInfo ci = ClassInfo.getResolvedClassInfo(clsName);
+    ClassInfo ci = ClassLoaderInfo.getCurrentResolvedClassInfo(clsName);
 
     if (!ci.isRegistered()) {
       ci.registerClass(ti);
       ci.setInitialized();
     }
-    
+
+    StackFrame frame = ti.getModifiableTopFrame();
+
+    arrayLength = frame.pop();
+    if (arrayLength < 0){
+      return ti.createAndThrowException("java.lang.NegativeArraySizeException");
+    }
+
+    Heap heap = ti.getHeap();
     if (heap.isOutOfMemory()) { // simulate OutOfMemoryError
       return ti.createAndThrowException("java.lang.OutOfMemoryError",
                                         "trying to allocate new " +
                                           Types.getTypeName(type) +
                                         "[" + arrayLength + "]");
     }
+
+    ElementInfo eiArray = heap.newArray(type, arrayLength, ti);
+    int aRef = eiArray.getObjectRef();
     
     // pushes the object reference on the top stack frame
-    ti.push(heap.newArray(type, arrayLength, ti), true);
-
-    ss.checkGC(); // has to happen after we push the new object ref
+    frame.push(aRef, true);
     
     return getNext(ti);
   }
@@ -77,7 +92,7 @@ public class ANEWARRAY extends NewArrayInstruction {
     return 0xBD;
   }
   
-  public void accept(InstructionVisitor insVisitor) {
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
   }
 }

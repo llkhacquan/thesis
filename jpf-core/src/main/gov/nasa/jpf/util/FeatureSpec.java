@@ -20,7 +20,7 @@
 package gov.nasa.jpf.util;
 
 import gov.nasa.jpf.JPF;
-import gov.nasa.jpf.jvm.ClassInfo;
+import gov.nasa.jpf.vm.ClassInfo;
 
 /**
  * common base class for MethodSpec and FieldSpec
@@ -139,8 +139,8 @@ public abstract class FeatureSpec {
     }
 
     // check interfaces (regardless of 'override' - interfaces make no sense otherwise
-    for (String ifcName : ci.getAllInterfaces()) {
-      if (clsSpec.matches(ifcName)) {
+    for (ClassInfo ifc : ci.getAllInterfaces()) {
+      if (clsSpec.matches(ifc.getName())) {
         return true;
       }
     }

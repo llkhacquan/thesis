@@ -18,9 +18,6 @@
 //
 package gov.nasa.jpf;
 
-import gov.nasa.jpf.jvm.JVM;
-import gov.nasa.jpf.jvm.NoOutOfMemoryErrorProperty;
-import gov.nasa.jpf.jvm.VMListener;
 import gov.nasa.jpf.report.Publisher;
 import gov.nasa.jpf.report.PublisherExtension;
 import gov.nasa.jpf.report.Reporter;
@@ -31,6 +28,9 @@ import gov.nasa.jpf.util.JPFLogger;
 import gov.nasa.jpf.util.LogManager;
 import gov.nasa.jpf.util.Misc;
 import gov.nasa.jpf.util.RunRegistry;
+import gov.nasa.jpf.vm.VM;
+import gov.nasa.jpf.vm.NoOutOfMemoryErrorProperty;
+import gov.nasa.jpf.vm.VMListener;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -44,7 +44,7 @@ import java.util.logging.Logger;
  */
 public class JPF implements Runnable {
   
-  public static String VERSION = "6.0"; // the major version number
+  public static String VERSION = "7.0"; // the major version number
 
   static Logger logger     = null; // initially
 
@@ -100,7 +100,7 @@ public class JPF implements Runnable {
   Search search;
 
   /** Reference to the virtual machine used by the search */
-  JVM vm;
+  VM vm;
 
   /** the report generator */
   Reporter reporter;
@@ -249,12 +249,7 @@ public class JPF implements Runnable {
       logger = initLogging(config);
     }
 
-    String tgt = config.getTarget();
-    if (tgt == null || (tgt.length() == 0)) {
-      logger.severe("no target class specified, terminating");
-    } else {
-      initialize();
-    }
+    initialize();
   }
 
   /**
@@ -272,9 +267,9 @@ public class JPF implements Runnable {
       
       Class<?>[] vmArgTypes = { JPF.class, Config.class };
       Object[] vmArgs = { this, config };
-      vm = config.getEssentialInstance("vm.class", JVM.class, vmArgTypes, vmArgs);
+      vm = config.getEssentialInstance("vm.class", VM.class, vmArgTypes, vmArgs);
 
-      Class<?>[] searchArgTypes = { Config.class, JVM.class };
+      Class<?>[] searchArgTypes = { Config.class, VM.class };
       Object[] searchArgs = { config, vm };
       search = config.getEssentialInstance("search.class", Search.class,
                                                 searchArgTypes, searchArgs);
@@ -470,10 +465,10 @@ public class JPF implements Runnable {
     return false;
   }
 
-  public <T extends Publisher> void setPublisherTopics (Class<T> pCls,
+  public <T extends Publisher> void setPublisherItems (Class<T> pCls,
                                                         int category, String[] topics) {
     if (reporter != null) {
-      reporter.setPublisherTopics(pCls, category, topics);
+      reporter.setPublisherItems(pCls, category, topics);
     }
   }
 
@@ -492,7 +487,7 @@ public class JPF implements Runnable {
   /**
    * return the VM object. This can be null if the initialization has failed
    */
-  public JVM getVM() {
+  public VM getVM() {
     return vm;
   }
 
@@ -678,6 +673,15 @@ public class JPF implements Runnable {
     return null;
   }
 
+  public Error getLastError () {
+    if (search != null) {
+      return search.getLastError();
+    }
+
+    return null;
+  }
+  
+  
   // some minimal sanity checks
   static boolean checkArgs (String[] args){
     String lastArg = args[args.length-1];

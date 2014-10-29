@@ -23,37 +23,39 @@ import gov.nasa.jpf.Config;
 import gov.nasa.jpf.Error;
 import gov.nasa.jpf.JPF;
 import gov.nasa.jpf.JPFConfigException;
+import gov.nasa.jpf.JPFListenerException;
 import gov.nasa.jpf.ListenerAdapter;
 import gov.nasa.jpf.Property;
-import gov.nasa.jpf.jvm.ChoiceGenerator;
-import gov.nasa.jpf.jvm.ElementInfo;
-import gov.nasa.jpf.jvm.ExceptionInfo;
-import gov.nasa.jpf.jvm.JVM;
-import gov.nasa.jpf.jvm.MethodInfo;
-import gov.nasa.jpf.jvm.NoUncaughtExceptionsProperty;
-import gov.nasa.jpf.jvm.NotDeadlockedProperty;
-import gov.nasa.jpf.jvm.ThreadInfo;
 import gov.nasa.jpf.jvm.bytecode.EXECUTENATIVE;
-import gov.nasa.jpf.jvm.bytecode.FieldInstruction;
+import gov.nasa.jpf.jvm.bytecode.JVMFieldInstruction;
 import gov.nasa.jpf.jvm.bytecode.INVOKESTATIC;
-import gov.nasa.jpf.jvm.bytecode.InstanceFieldInstruction;
+import gov.nasa.jpf.jvm.bytecode.JVMInstanceFieldInstruction;
 import gov.nasa.jpf.jvm.bytecode.InstanceInvocation;
-import gov.nasa.jpf.jvm.bytecode.Instruction;
-import gov.nasa.jpf.jvm.bytecode.InvokeInstruction;
+import gov.nasa.jpf.jvm.bytecode.JVMInvokeInstruction;
 import gov.nasa.jpf.jvm.bytecode.LockInstruction;
 import gov.nasa.jpf.jvm.bytecode.PUTFIELD;
 import gov.nasa.jpf.jvm.bytecode.PUTSTATIC;
-import gov.nasa.jpf.jvm.bytecode.StaticFieldInstruction;
+import gov.nasa.jpf.jvm.bytecode.JVMStaticFieldInstruction;
 import gov.nasa.jpf.report.ConsolePublisher;
 import gov.nasa.jpf.report.Publisher;
 import gov.nasa.jpf.search.Search;
 import gov.nasa.jpf.util.FileUtils;
 import gov.nasa.jpf.util.Misc;
+import gov.nasa.jpf.vm.ChoiceGenerator;
+import gov.nasa.jpf.vm.ElementInfo;
+import gov.nasa.jpf.vm.ExceptionInfo;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.VM;
+import gov.nasa.jpf.vm.MethodInfo;
+import gov.nasa.jpf.vm.NoUncaughtExceptionsProperty;
+import gov.nasa.jpf.vm.NotDeadlockedProperty;
+import gov.nasa.jpf.vm.ThreadInfo;
 
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.util.HashMap;
 import java.util.HashSet;
 
 /**
@@ -79,8 +81,8 @@ public class SimpleDot extends ListenerAdapter {
   static final String GENERIC_EDGE_ATTRS = "fontsize=10,fontname=Helvetica,fontcolor=blue,color=cadetblue,style=\"setlinewidth(0.5)\",arrowhead=empty,arrowsize=0.5";
   static final String START_NODE_ATTRS = "fillcolor=green";
   static final String END_NODE_ATTRS = "shape=doublecircle,fillcolor=cyan";
-  static final String ERROR_NODE_ATTRS = "color=red,fillcolor=yellow";
-  static final String BACKTRACK_EDGE_ATTRS = "arrowhead=onormal,color=gray,style=\"dotted\"";
+  static final String ERROR_NODE_ATTRS = "color=red,fillcolor=lightcoral";
+  static final String BACKTRACK_EDGE_ATTRS = "arrowhead=onormal,color=gray52,style=\"dotted\"";
   static final String RESTORED_EDGE_ATTRS = "arrowhead=onormal,color=red,style=\"dotted\"";
   static final String NEW_EDGE_ATTRS = "arrowhead=normal";
   static final String VISITED_EDGE_ATTRS = "arrowhead=vee";
@@ -101,12 +103,13 @@ public class SimpleDot extends ListenerAdapter {
   protected boolean showTarget;
   protected boolean printFile;
 
-  protected JVM vm;
+  protected VM vm;
   protected String app;
   protected File file;
   protected PrintWriter pw;
 
   protected int lastId = -1;    // where we come from
+  protected String lastErrorId;
   protected ElementInfo lastEi;
   protected ThreadInfo lastTi;  // the last started thread
 
@@ -114,13 +117,6 @@ public class SimpleDot extends ListenerAdapter {
   HashSet<Long> seenEdges;
 
   public SimpleDot( Config config, JPF jpf){
-    app = config.getTarget();
-
-    String fname = config.getString("dot.file");
-    if (fname == null){
-      fname = Misc.stripToLastDot(app);
-      fname += ".dot";
-    }
 
     graphAttrs = config.getString("dot.graph_attr", GRAPH_ATTRS);
     genericNodeAttrs = config.getString("dot.node_attr", GENERIC_NODE_ATTRS);
@@ -136,6 +132,23 @@ public class SimpleDot extends ListenerAdapter {
     printFile = config.getBoolean("dot.print_file", false);
     showTarget = config.getBoolean("dot.show_target", false);
 
+    // app and filename are not known until the search is started
+    
+    jpf.addPublisherExtension(ConsolePublisher.class, this);
+  }
+
+  void initialize (VM vm){
+    Config config = vm.getConfig();
+    
+    app = vm.getSUTName();
+    app = app.replace("+", "__");
+    app = app.replace('.', '_');
+
+    String fname = config.getString("dot.file");
+    if (fname == null){
+      fname = app + ".dot";
+    }
+
     try {
       file = new File(fname);
       FileWriter fw = new FileWriter(file);
@@ -143,17 +156,18 @@ public class SimpleDot extends ListenerAdapter {
     } catch (IOException iox){
       throw new JPFConfigException("unable to open SimpleDot output file: " + fname);
     }
-
-    jpf.addPublisherExtension(ConsolePublisher.class, this);
+    
+    seenEdges = new HashSet<Long>();
   }
-
+  
   //--- the listener interface
 
   @Override
   public void searchStarted(Search search){
     vm = search.getVM();
-    seenEdges = new HashSet<Long>();
-
+    
+    initialize(vm);
+    
     printHeader();
     printStartState("S");
   }
@@ -172,6 +186,7 @@ public class SimpleDot extends ListenerAdapter {
       String eid = "e" + search.getNumberOfErrors();
       printTransition(getStateId(lastId), eid, getLastChoice(), getError(search));
       printErrorState(eid);
+      lastErrorId = eid;
 
     } else if (search.isNewState()) {
 
@@ -196,7 +211,12 @@ public class SimpleDot extends ListenerAdapter {
     long edgeId = ((long)lastId << 32) | id;
 
     if (!seenEdges.contains(edgeId)) {
-      printBacktrack(getStateId(lastId), getStateId(id));
+      if(lastErrorId!=null) {
+        printBacktrack(lastErrorId, getStateId(id));
+        lastErrorId = null;
+      } else {
+        printBacktrack(getStateId(lastId), getStateId(id));
+      }
       seenEdges.add(edgeId);
     }
     lastId = id;
@@ -221,13 +241,14 @@ public class SimpleDot extends ListenerAdapter {
   }
 
   @Override
-  public void threadStarted (JVM vm){
-    lastTi = vm.getLastThreadInfo();
+  public void threadStarted (VM vm, ThreadInfo ti){
+    lastTi = ti;
   }
 
   @Override
-  public void objectWait (JVM vm){
-    lastEi = vm.getLastElementInfo();
+  public void objectWait (VM vm, ThreadInfo ti, ElementInfo ei){
+    lastEi = ei;
+    lastTi = ti;
   }
 
   @Override
@@ -263,7 +284,7 @@ public class SimpleDot extends ListenerAdapter {
   }
 
   // this is the only method that's more tricky - we have to find a balance
-  // between beeing conscious enough to not clutter the graph, and expressive
+  // between being conscious enough to not clutter the graph, and expressive
   // enough to understand it.
   // <2do> this doesn't deal well with custom or data CGs yet
   protected String getNextCG(){
@@ -273,14 +294,14 @@ public class SimpleDot extends ListenerAdapter {
     if (insn instanceof EXECUTENATIVE) {
       return getNativeExecCG((EXECUTENATIVE)insn);
 
-    } else if (insn instanceof FieldInstruction) { // shared object field access
-      return getFieldAccessCG((FieldInstruction)insn);
+    } else if (insn instanceof JVMFieldInstruction) { // shared object field access
+      return getFieldAccessCG((JVMFieldInstruction)insn);
 
     } else if (insn instanceof LockInstruction){ // monitor_enter
       return getLockCG((LockInstruction)insn);
 
-    } else if (insn instanceof InvokeInstruction){ // sync method invoke
-      return getInvokeCG((InvokeInstruction)insn);
+    } else if (insn instanceof JVMInvokeInstruction){ // sync method invoke
+      return getInvokeCG((JVMInvokeInstruction)insn);
     }
 
     return insn.getMnemonic(); // our generic fallback
@@ -299,10 +320,10 @@ public class SimpleDot extends ListenerAdapter {
     return s;
   }
 
-  protected String getFieldAccessCG (FieldInstruction insn){
+  protected String getFieldAccessCG (JVMFieldInstruction insn){
     String s;
 
-    if (insn instanceof InstanceFieldInstruction) {
+    if (insn instanceof JVMInstanceFieldInstruction) {
 
       if (insn instanceof PUTFIELD) {
         s = "put";
@@ -311,7 +332,7 @@ public class SimpleDot extends ListenerAdapter {
       }
 
       if (showTarget){
-        int ref = ((InstanceFieldInstruction) insn).getLastThis();
+        int ref = ((JVMInstanceFieldInstruction) insn).getLastThis();
         s = getInstanceRef(ref) + '.' + s;
       }
 
@@ -323,12 +344,12 @@ public class SimpleDot extends ListenerAdapter {
       }
 
       if (showTarget){
-        String clsName = ((StaticFieldInstruction) insn).getLastClassName();
+        String clsName = ((JVMStaticFieldInstruction) insn).getLastClassName();
         s = Misc.stripToLastDot(clsName) + '.' + s;
       }
     }
 
-    String varId = Misc.stripToLastDot(((FieldInstruction) insn).getVariableId());
+    String varId = ((JVMFieldInstruction) insn).getFieldName();
     s = s + ' ' + varId;
 
     return s;
@@ -345,7 +366,7 @@ public class SimpleDot extends ListenerAdapter {
     return s;
   }
 
-  protected String getInvokeCG (InvokeInstruction insn){
+  protected String getInvokeCG (JVMInvokeInstruction insn){
     MethodInfo mi = insn.getInvokedMethod();
     String s = mi.getName() + "()";
 

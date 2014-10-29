@@ -18,20 +18,22 @@
 //
 package gov.nasa.jpf.jvm.bytecode;
 
-import gov.nasa.jpf.jvm.ClassInfo;
-import gov.nasa.jpf.jvm.ElementInfo;
-import gov.nasa.jpf.jvm.KernelState;
-import gov.nasa.jpf.jvm.MJIEnv;
-import gov.nasa.jpf.jvm.SystemState;
-import gov.nasa.jpf.jvm.ThreadInfo;
-import gov.nasa.jpf.jvm.Types;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.ClassInfo;
+import gov.nasa.jpf.vm.ElementInfo;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.LoadOnJPFRequired;
+import gov.nasa.jpf.vm.MJIEnv;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.ThreadInfo;
+import gov.nasa.jpf.vm.Types;
 
 
 /**
  * Check whether object is of given type
  * ..., objectref => ..., objectref
  */
-public class CHECKCAST extends Instruction {
+public class CHECKCAST extends Instruction implements JVMInstruction {
   String type;
 
   public CHECKCAST() {} // this is going away
@@ -44,14 +46,32 @@ public class CHECKCAST extends Instruction {
     return type;
   }
 
-  public Instruction execute (SystemState ss, KernelState ks, ThreadInfo ti) {
-    int objref = ti.peek();
+  public Instruction execute (ThreadInfo ti) {
+    StackFrame frame = ti.getTopFrame();
+    int objref = frame.peek();
 
     if (objref == MJIEnv.NULL) {
        // we can cast 'null' to anything
 
     } else {
       boolean isValid = false;
+
+      if(Types.isReferenceSignature(type)) {
+        String t;
+        if(Types.isArray(type)) {
+          // retrieve the component terminal
+          t = Types.getComponentTerminal(type);
+        } else {
+          t = type;
+        }
+
+        // resolve the referenced class
+        try {
+          ti.resolveReferencedClass(t);
+        } catch(LoadOnJPFRequired lre) {
+          return ti.getPC();
+        }
+      }
 
       ElementInfo e = ti.getElementInfo(objref);
       ClassInfo eci = e.getClassInfo();
@@ -85,7 +105,7 @@ public class CHECKCAST extends Instruction {
     return 0xC0;
   }
   
-  public void accept(InstructionVisitor insVisitor) {
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
   }
 }

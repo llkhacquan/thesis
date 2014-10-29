@@ -19,9 +19,9 @@
 package gov.nasa.jpf.search.heuristic;
 
 import gov.nasa.jpf.Config;
-import gov.nasa.jpf.jvm.ElementInfo;
-import gov.nasa.jpf.jvm.JVM;
-import gov.nasa.jpf.jvm.StaticArea;
+import gov.nasa.jpf.vm.ClassLoaderInfo;
+import gov.nasa.jpf.vm.ElementInfo;
+import gov.nasa.jpf.vm.VM;
 
 
 /**
@@ -34,20 +34,18 @@ import gov.nasa.jpf.jvm.StaticArea;
 public class UserHeuristic extends SimplePriorityHeuristic {
   static final int defaultValue = 1000;
 
-  public UserHeuristic (Config config, JVM vm) {
+  public UserHeuristic (Config config, VM vm) {
     super(config, vm);
   }
 
   protected int computeHeuristicValue () {
     
-    // <2do> pcm - BAD, remove the VM nuts-and-bolts dependencies
-    StaticArea ss = vm.getStaticArea();
-    ElementInfo   p = ss.get("Main");
-    // <2dp> - this is not initialized !
-
-    // this code is ugly because of the Reference interface
-    if (p != null) {
-      ElementInfo b = p.getObjectField("buffer");
+    // <2do> pcm - BAD, this is WAY too hardwired
+    ClassLoaderInfo systemLoader = ClassLoaderInfo.getCurrentSystemClassLoader();
+    ElementInfo ei = systemLoader.getElementInfo("Main");
+    if (ei != null) {
+      // this code is ugly because of the Reference interface
+      ElementInfo b = ei.getObjectField("buffer");
 
       if (b != null) {
         int current = b.getIntField("current");

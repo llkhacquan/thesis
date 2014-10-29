@@ -18,13 +18,11 @@
 //
 package gov.nasa.jpf.jvm.bytecode;
 
-import gov.nasa.jpf.jvm.ChoiceGenerator;
-import gov.nasa.jpf.jvm.ClassInfo;
-import gov.nasa.jpf.jvm.ElementInfo;
-import gov.nasa.jpf.jvm.KernelState;
-import gov.nasa.jpf.jvm.MethodInfo;
-import gov.nasa.jpf.jvm.SystemState;
-import gov.nasa.jpf.jvm.ThreadInfo;
+import gov.nasa.jpf.vm.ClassInfo;
+import gov.nasa.jpf.vm.ElementInfo;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.MethodInfo;
+import gov.nasa.jpf.vm.ThreadInfo;
 
 /**
  * this is an artificial bytecode that we use to deal with the particularities of 
@@ -32,15 +30,13 @@ import gov.nasa.jpf.jvm.ThreadInfo;
  * the VM. The most obvious difference is that <clinit> execution does not trigger
  * class initialization.
  * A more subtle difference is that we save a wait() - if a class
- * is concurrently initialized, both execute INVOKECLINIT (i.e. compete and sync for/on
+ * is concurrently initialized, both enter INVOKECLINIT (i.e. compete and sync for/on
  * the class object lock), but once the second thread gets resumed and detects that the
  * class is now initialized (by the first thread), it skips the method execution and
  * returns right away (after deregistering as a lock contender). That's kind of hackish,
  * but we have no method to do the wait in, unless we significantly complicate the
  * direct call stubs, which would obfuscate observability (debugging dynamically
  * generated code isn't very appealing). 
- * 
- * <2do> pcm - maybe we should move this into the jpf.jvm package, it's artificial anyways 
  */
 public class INVOKECLINIT extends INVOKESTATIC {
 
@@ -48,52 +44,32 @@ public class INVOKECLINIT extends INVOKESTATIC {
     super(ci.getSignature(), "<clinit>", "()V");
   }
 
-  public Instruction execute (SystemState ss, KernelState ks, ThreadInfo ti) {
-    
+  @Override
+  public Instruction execute (ThreadInfo ti) {    
     MethodInfo callee = getInvokedMethod(ti);
-    ClassInfo ci = callee.getClassInfo();
-    
-    ElementInfo ei = ti.getElementInfo(ci.getClassObjectRef());
+    ClassInfo ciClsObj = callee.getClassInfo();
+    ElementInfo ei = ciClsObj.getClassObject();
 
-    // first time around - reexecute if the scheduling policy gives us a choice point
-    if (!ti.isFirstStepInsn()) {
-      
-      if (!ei.canLock(ti)) {
-        // block first, so that we don't get this thread in the list of CGs
-        ei.block(ti);
-      }
-      
-      ChoiceGenerator cg = ss.getSchedulerFactory().createSyncMethodEnterCG(ei, ti);
-      if (ss.setNextChoiceGenerator(cg)){
-        if (!ti.isBlocked()) {
-          // record that this thread would lock the object upon next execution
-          ei.registerLockContender(ti);
-        }
-        return this;   // repeat exec, keep insn on stack
-      }
-      
-      assert !ti.isBlocked() : "scheduling policy did not return ChoiceGenerator for blocking INVOKE";
-      
-    } else {
-      // if we got here, we can execute, and have the lock
-      // but there still might have been another thread that passed us with the init
-      // note that the state in this case would be INITIALIZED, otherwise we wouldn't
-      // have gotten the lock
-      if (!ci.needsInitialization()) {
-        // we never got the lock it (that would have happened in MethodInfo.enter(), but
-        // registerLockContender added it to the lockedThreads list of the monnitor,
-        // and ti might be blocked on it (if we couldn't lock in the top half above)
+    if (ciClsObj.isInitialized()) { // somebody might have already done it if this is re-executed
+      if (ei.isRegisteredLockContender(ti)){
+        ei = ei.getModifiableInstance();
         ei.unregisterLockContender(ti);
-        return getNext();
       }
+      return getNext();
+    }
+
+    // not much use to update sharedness, clinits are automatically synchronized
+    if (reschedulesLockAcquisition(ti, ei)){     // this blocks or registers as lock contender
+      return this;
     }
     
-    // enter the method body, return its first insn
-    // (this would take the lock, reset the lockRef etc., so make sure all these
-    // side effects are dealt with if we bail out)
-    return callee.execute(ti);
+    // if we get here we still have to execute the clinit method
+    setupCallee( ti, callee); // this creates, initializes & pushes the callee StackFrame, then acquires the lock
+
+    return ti.getPC(); // we can't just return the first callee insn if a listener throws an exception
   }
 
+  @Override
   public boolean isExtendedInstruction() {
     return true;
   }
@@ -104,7 +80,7 @@ public class INVOKECLINIT extends INVOKESTATIC {
     return OPCODE;
   }
   
-  public void accept(InstructionVisitor insVisitor) {
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
   }
 }

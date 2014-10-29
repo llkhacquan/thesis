@@ -5,6 +5,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Vector;
 
 /** Token Manager. */
 public class InfixToPrefixTokenManager implements InfixToPrefixConstants
@@ -62,7 +63,7 @@ private int jjMoveStringLiteralDfa0_0()
          return jjMoveStringLiteralDfa1_0(0x4002000L);
       case 61:
          jjmatchedKind = 8;
-         return jjMoveStringLiteralDfa1_0(0x1000L);
+         return jjMoveStringLiteralDfa1_0(0x8001000L);
       case 62:
          jjmatchedKind = 10;
          return jjMoveStringLiteralDfa1_0(0x4000L);
@@ -102,6 +103,10 @@ private int jjMoveStringLiteralDfa1_0(long active0)
          else if ((active0 & 0x8000L) != 0L)
             return jjStopAtPos(1, 15);
          break;
+      case 62:
+         if ((active0 & 0x8000000L) != 0L)
+            return jjStopAtPos(1, 27);
+         break;
       case 124:
          if ((active0 & 0x10000L) != 0L)
             return jjStopAtPos(1, 16);
@@ -138,24 +143,24 @@ private int jjMoveNfa_0(int startState, int curPos)
                      jjCheckNAdd(2);
                   break;
                case 2:
-                  if ((0x3ff000000000000L & l) == 0L)
-                     break;
-                  if (kind > 27)
-                     kind = 27;
-                  jjCheckNAdd(2);
-                  break;
-               case 9:
-                  if ((0x3ff000000000000L & l) == 0L)
+                  if ((0x3ff500000000000L & l) == 0L)
                      break;
                   if (kind > 28)
                      kind = 28;
+                  jjCheckNAdd(2);
+                  break;
+               case 9:
+                  if ((0x3ff700000000000L & l) == 0L)
+                     break;
+                  if (kind > 29)
+                     kind = 29;
                   jjstateSet[jjnewStateCnt++] = 9;
                   break;
                case 11:
                   if ((0x3ff500000000000L & l) == 0L)
                      break;
-                  if (kind > 29)
-                     kind = 29;
+                  if (kind > 30)
+                     kind = 30;
                   jjCheckNAdd(11);
                   break;
                default : break;
@@ -172,8 +177,8 @@ private int jjMoveNfa_0(int startState, int curPos)
                case 7:
                   if ((0x7fffffe87fffffeL & l) != 0L)
                   {
-                     if (kind > 28)
-                        kind = 28;
+                     if (kind > 29)
+                        kind = 29;
                      jjCheckNAdd(9);
                   }
                   if (curChar == 67)
@@ -203,8 +208,8 @@ private int jjMoveNfa_0(int startState, int curPos)
                case 9:
                   if ((0x7fffffe87fffffeL & l) == 0L)
                      break;
-                  if (kind > 28)
-                     kind = 28;
+                  if (kind > 29)
+                     kind = 29;
                   jjCheckNAdd(9);
                   break;
                default : break;
@@ -247,14 +252,14 @@ static final int[] jjnextStates = {
 public static final String[] jjstrLiteralImages = {
 "", null, null, null, null, null, "\50", "\51", "\75", "\74", "\76", "\72", 
 "\75\75", "\74\75", "\76\75", "\41\75", "\174\174", "\46\46", "\53", "\55", "\52", 
-"\57", "\46", "\174", "\136", "\45", "\74\74", null, null, null, };
+"\57", "\46", "\174", "\136", "\45", "\74\74", "\75\76", null, null, null, };
 
 /** Lexer state names. */
 public static final String[] lexStateNames = {
    "DEFAULT",
 };
 static final long[] jjtoToken = {
-   0x3fffffc1L, 
+   0x7fffffc1L, 
 };
 static final long[] jjtoSkip = {
    0x3eL, 

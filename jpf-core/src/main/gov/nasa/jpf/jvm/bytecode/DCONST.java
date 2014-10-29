@@ -18,39 +18,44 @@
 //
 package gov.nasa.jpf.jvm.bytecode;
 
-import gov.nasa.jpf.jvm.KernelState;
-import gov.nasa.jpf.jvm.SystemState;
-import gov.nasa.jpf.jvm.ThreadInfo;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.ThreadInfo;
 
 
 /**
  * Push double
  * ... => ..., <d>
  */
-public class DCONST extends Instruction {
-  private long value;
+public class DCONST extends Instruction implements JVMInstruction {
+  private double value;
 
   public DCONST() {} // this is going away
 
   public DCONST (double d){
-    value = Double.doubleToLongBits(d);
+    value = d;
   }
 
-  public Instruction execute (SystemState ss, KernelState ks, ThreadInfo th) {
-    th.longPush(value);
+  @Override
+  public Instruction execute (ThreadInfo ti) {
+    StackFrame frame = ti.getModifiableTopFrame();
+    frame.pushDouble(value);
 
-    return getNext(th);
+    return getNext(ti);
   }
   
-  public long getValue(){
+  public double getValue(){
 	  return value;
   }
 
+  @Override
   public int getByteCode () {
     return 0x0E;  // ? DCONST_0 0x0E , DCONST_1 0x0F
   }
   
-  public void accept(InstructionVisitor insVisitor) {
+  @Override
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
   }
 }

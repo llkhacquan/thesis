@@ -19,15 +19,16 @@
 package gov.nasa.jpf.listener;
 
 import gov.nasa.jpf.ListenerAdapter;
-import gov.nasa.jpf.jvm.ClassInfo;
-import gov.nasa.jpf.jvm.JVM;
-import gov.nasa.jpf.jvm.MethodInfo;
-import gov.nasa.jpf.jvm.ThreadInfo;
-import gov.nasa.jpf.jvm.bytecode.Instruction;
 import gov.nasa.jpf.jvm.bytecode.LCMP;
 import gov.nasa.jpf.jvm.bytecode.LSUB;
 import gov.nasa.jpf.jvm.bytecode.NATIVERETURN;
-import gov.nasa.jpf.jvm.choice.IntChoiceFromSet;
+import gov.nasa.jpf.vm.ClassInfo;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.VM;
+import gov.nasa.jpf.vm.MethodInfo;
+import gov.nasa.jpf.vm.ThreadInfo;
+import gov.nasa.jpf.vm.choice.IntChoiceFromSet;
 
 
 /**
@@ -66,70 +67,71 @@ public class StopWatchFuzzer extends ListenerAdapter {
   static TimeVal timeValAttr = new TimeVal(); // we don't need separate instances
   
   static String CG_ID = "LCMP_fuzzer";
-  
-  public void classLoaded( JVM jvm){
+
+  @Override
+  public void classLoaded(VM vm, ClassInfo ci){
     if (miCurrentTimeMillis == null){
-      ClassInfo ci = jvm.getLastClassInfo();
       if (ci.getName().equals("java.lang.System")) {
         miCurrentTimeMillis = ci.getMethod("currentTimeMillis()J", false); // its got to be there
       }
     }
   }
   
-  public void instructionExecuted( JVM jvm){
-    Instruction insn = jvm.getLastInstruction();
-    
-    if (insn instanceof NATIVERETURN){
-      ThreadInfo ti = jvm.getLastThreadInfo();
-      if (insn.isCompleted(ti)){
-        if (((NATIVERETURN)insn).getMethodInfo() == miCurrentTimeMillis){
+  @Override
+  public void instructionExecuted(VM vm, ThreadInfo ti, Instruction nextInsn, Instruction executedInsn){
+
+    if (executedInsn instanceof NATIVERETURN){
+      if (executedInsn.isCompleted(ti)){
+        if (((NATIVERETURN)executedInsn).getMethodInfo() == miCurrentTimeMillis){
           // the two top operand slots hold the 'long' time value
-          ti.addLongOperandAttr( timeValAttr);
+          StackFrame frame = ti.getModifiableTopFrame();
+          frame.addLongOperandAttr( timeValAttr);
         }
       }
     }
   }
   
-  public void executeInstruction( JVM jvm){
-    Instruction insn = jvm.getLastInstruction();
+  @Override
+  public void executeInstruction(VM vm, ThreadInfo ti, Instruction insnToExecute){
 
-    if (insn instanceof LSUB){  // propagate TimeVal attrs
-      ThreadInfo ti = jvm.getLastThreadInfo();
-      
+    if (insnToExecute instanceof LSUB){  // propagate TimeVal attrs
+      StackFrame frame = ti.getTopFrame();
       // check if any of the operands have TimeVal attributes
       // attributes are stored on the first slot of a long val
-      if (ti.hasOperandAttr(1, TimeVal.class) || ti.hasOperandAttr(3, TimeVal.class)){      
-        // execute insn (this pops the 4 top operand slots and pushes the long result
-        ti.skipInstruction(insn.execute(jvm.getSystemState(), jvm.getKernelState(), ti));
+      if (frame.hasOperandAttr(1, TimeVal.class) || frame.hasOperandAttr(3, TimeVal.class)){      
+        // enter insn (this pops the 4 top operand slots and pushes the long result
+        ti.skipInstruction(insnToExecute.execute(ti));
       
-        // propagate TimeVal attr
-        ti.addLongOperandAttr(timeValAttr);
+        // propagate TimeVal attr, now we need a modifiable frame
+        frame = ti.getModifiableTopFrame();
+        frame.addLongOperandAttr(timeValAttr);
       }
        
-    } else if (insn instanceof LCMP){ // create and set CG if operand has TimeVal attr
-      ThreadInfo ti = jvm.getLastThreadInfo();
+    } else if (insnToExecute instanceof LCMP){ // create and set CG if operand has TimeVal attr
       
       if (!ti.isFirstStepInsn()){ // this is the first time we see this insn
-        if (ti.hasOperandAttr(1, TimeVal.class) || ti.hasOperandAttr(3, TimeVal.class)){
+        StackFrame frame = ti.getTopFrame();
+        
+        if (frame.hasOperandAttr(1, TimeVal.class) || frame.hasOperandAttr(3, TimeVal.class)){
           IntChoiceFromSet cg = new IntChoiceFromSet( CG_ID, -1, 0, 1);
-          if (jvm.setNextChoiceGenerator(cg)){
-            ti.skipInstruction(insn); // reexecute after breaking the transition
+          if (vm.setNextChoiceGenerator(cg)){
+            ti.skipInstruction(insnToExecute); // reexecute after breaking the transition
           }
         }
         
       } else { // it is the beginning of a transition, push the choice and proceed
-        IntChoiceFromSet cg = jvm.getCurrentChoiceGenerator(CG_ID, IntChoiceFromSet.class);
+        IntChoiceFromSet cg = vm.getCurrentChoiceGenerator(CG_ID, IntChoiceFromSet.class);
         if (cg != null){
           int choice = cg.getNextChoice();
+          StackFrame frame = ti.getModifiableTopFrame();
+          
           // pop the operands 
-          ti.longPop(); // be aware of this is the first change of the top frame in this transition
-          ti.longPop();
+          frame.popLong();
+          frame.popLong();
           
-          // push the choice
-          ti.push(choice);
+          frame.push(choice);
           
-          // skip the insn
-          ti.skipInstruction(insn.getNext());
+          ti.skipInstruction(insnToExecute.getNext());
         }
       }
     }

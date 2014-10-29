@@ -26,17 +26,18 @@ import gov.nasa.jpf.JPFException;
 import gov.nasa.jpf.JPFListenerException;
 import gov.nasa.jpf.Property;
 import gov.nasa.jpf.State;
-import gov.nasa.jpf.jvm.JVM;
-import gov.nasa.jpf.jvm.Path;
-import gov.nasa.jpf.jvm.ThreadList;
-import gov.nasa.jpf.jvm.Transition;
 import gov.nasa.jpf.report.Reporter;
 import gov.nasa.jpf.util.IntVector;
 import gov.nasa.jpf.util.JPFLogger;
 import gov.nasa.jpf.util.Misc;
+import gov.nasa.jpf.vm.VM;
+import gov.nasa.jpf.vm.Path;
+import gov.nasa.jpf.vm.ThreadList;
+import gov.nasa.jpf.vm.Transition;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * the mother of all search classes. Mostly takes care of listeners, keeping
@@ -52,7 +53,7 @@ public abstract class Search {
   protected ArrayList<Error> errors = new ArrayList<Error>();
 
   protected int       depth = 0;
-  protected JVM       vm;
+  protected VM       vm;
 
   protected ArrayList<Property> properties;
 
@@ -68,6 +69,8 @@ public abstract class Search {
   protected boolean done = false;
   protected boolean doBacktrack = false;
 
+  // do we have a probe request
+  protected AtomicBoolean notifyProbeListeners = new AtomicBoolean(false);
 
   /** search listeners. We keep them in a simple array to avoid
    creating objects on each notification */
@@ -110,7 +113,7 @@ public abstract class Search {
   /** storage to keep track of state depths */
   protected final IntVector stateDepth = new IntVector();
 
-  protected Search (Config config, JVM vm) {
+  protected Search (Config config, VM vm) {
     this.vm = vm;
     this.config = config;
 
@@ -228,6 +231,29 @@ public abstract class Search {
   }
 
   /**
+   * request a probe
+   * 
+   * This does not do the actual listener notification, it only stores
+   * the request, which is then processed from within JPFs inner execution loop.
+   * As a consequence, probeSearch() can be called async, and searchProbed() listeners
+   * don't have to bother with synchronization or inconsistent JPF states (notification 
+   * happens from within JPFs main thread after a completed Instruction execution)
+   */
+  public void probeSearch(){
+    notifyProbeListeners.set(true);
+  }
+  
+  /**
+   * this does the actual notification and resets the request, hence this call
+   * should only happen from within JPFs main thread
+   */
+  public void checkAndResetProbeRequest(){
+    if (notifyProbeListeners.compareAndSet(true, false)){
+      notifySearchProbed();
+    }
+  }
+  
+  /**
    * @return error encountered during *last* transition (null otherwise)
    */
   public Error getCurrentError(){
@@ -247,7 +273,7 @@ public abstract class Search {
     return !errors.isEmpty();
   }
 
-  public JVM getVM() {
+  public VM getVM() {
     return vm;
   }
 
@@ -365,12 +391,19 @@ public abstract class Search {
     error(property, null, null);
   }
 
-  protected void error (Property property, Path path, ThreadList threadList) {
+  public void error (Property property, Path path, ThreadList threadList) {
 
     if (getAllErrors) {
-      path = path.clone(); // otherwise we are going to overwrite it
-      threadList = (ThreadList)threadList.clone(); // this makes it a snapshot (deep) clone
+       // otherwise we are going to overwrite it if we go on
+      try {
+        property = property.clone();
+        path = path.clone();
+        threadList = (ThreadList) threadList.clone(); // this makes it a snapshot (deep) clone
+      } catch (CloneNotSupportedException cnsx){
+        throw new JPFException("failed to clone error information: " + cnsx);
+      }
       done = false;
+      
     } else {
       done = true;
     }
@@ -469,6 +502,20 @@ public abstract class Search {
     }
   }
 
+  public void notifySearchProbed() {
+    try {
+      for (int i = 0; i < listeners.length; i++) {
+        listeners[i].searchProbed(this);
+      }
+      if (reporter != null){
+        reporter.searchProbed(this);
+      }
+    } catch (Throwable t) {
+      throw new JPFListenerException("exception during searchProbed() notification", t);
+    }
+  }
+
+  
   protected void notifyPropertyViolated() {
     try {
       for (int i = 0; i < listeners.length; i++) {

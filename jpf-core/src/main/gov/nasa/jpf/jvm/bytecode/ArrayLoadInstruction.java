@@ -18,11 +18,13 @@
 //
 package gov.nasa.jpf.jvm.bytecode;
 
-import gov.nasa.jpf.jvm.ArrayIndexOutOfBoundsExecutiveException;
-import gov.nasa.jpf.jvm.ElementInfo;
-import gov.nasa.jpf.jvm.KernelState;
-import gov.nasa.jpf.jvm.SystemState;
-import gov.nasa.jpf.jvm.ThreadInfo;
+import gov.nasa.jpf.vm.ArrayIndexOutOfBoundsExecutiveException;
+import gov.nasa.jpf.vm.ElementInfo;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.MJIEnv;
+import gov.nasa.jpf.vm.Scheduler;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.ThreadInfo;
 
 
 /**
@@ -30,40 +32,43 @@ import gov.nasa.jpf.jvm.ThreadInfo;
  *
  * ..., array, index => ..., value
  */
-public abstract class ArrayLoadInstruction extends ArrayInstruction {
+public abstract class ArrayLoadInstruction extends JVMArrayElementInstruction implements JVMInstruction {
   
-  public Instruction execute (SystemState ss, KernelState ks, ThreadInfo ti) {
+  @Override
+  public Instruction execute (ThreadInfo ti) {
+    StackFrame frame = ti.getModifiableTopFrame();
 
-    // we need to get the object first, to check if it is shared
-    int aref = ti.peek(1); // ..,arrayRef,idx
-    if (aref == -1) {
+    index = frame.peek();
+    arrayRef = frame.peek(1); // ..,arrayRef,idx
+    if (arrayRef == MJIEnv.NULL) {
       return ti.createAndThrowException("java.lang.NullPointerException");
-    }
-    ElementInfo e = ti.getElementInfo(aref);
-
-    if (isNewPorBoundary(e, ti)) {
-      if (createAndSetArrayCG(ss,e,ti, aref,peekIndex(ti),true)) {
+    }    
+    ElementInfo eiArray = ti.getElementInfo(arrayRef);
+    
+    Scheduler scheduler = ti.getScheduler();
+    if (scheduler.canHaveSharedArrayCG( ti, this, eiArray, index)){ // don't modify the frame before this
+      eiArray = scheduler.updateArraySharedness(ti, eiArray, index);
+      if (scheduler.setsSharedArrayCG( ti, this, eiArray, index)){
         return this;
       }
     }
     
-    index = ti.pop();
-
-    // we should not set 'arrayRef' before the CG check
-    // (this would kill the CG loop optimization)
-    arrayRef = ti.pop();
+    frame.pop(2); // now we can pop index and array reference
     
     try {
-      push(ti, e, index);
+      push(frame, eiArray, index);
 
-      Object attr = e.getElementAttr(index);
-      if (getElementSize() == 1){
-        ti.setOperandAttrNoClone(attr);
-      } else {
-        ti.setLongOperandAttrNoClone(attr);
+      Object elementAttr = eiArray.getElementAttr(index);
+      if (elementAttr != null) {
+        if (getElementSize() == 1) {
+          frame.setOperandAttr(elementAttr);
+        } else {
+          frame.setLongOperandAttr(elementAttr);
+        }
       }
       
       return getNext(ti);
+      
     } catch (ArrayIndexOutOfBoundsExecutiveException ex) {
       return ex.getInstruction();
     }
@@ -76,24 +81,29 @@ public abstract class ArrayLoadInstruction extends ArrayInstruction {
   /**
    * only makes sense pre-exec
    */
-  protected int peekArrayRef (ThreadInfo ti){
-    return ti.peek(1);
+  @Override
+  public int peekArrayRef (ThreadInfo ti){
+    return ti.getTopFrame().peek(1);
   }
 
   // wouldn't really be required for loads, but this is a general
   // ArrayInstruction API
-  protected int peekIndex (ThreadInfo ti){
-    return ti.peek();
+  @Override
+  public int peekIndex (ThreadInfo ti){
+    return ti.getTopFrame().peek();
   }
 
-  protected abstract void push (ThreadInfo th, ElementInfo e, int index)
+  protected abstract void push (StackFrame frame, ElementInfo e, int index)
                 throws ArrayIndexOutOfBoundsExecutiveException;
 
+  
+  @Override
   public boolean isRead() {
     return true;
   }
   
-  public void accept(InstructionVisitor insVisitor) {
+  @Override
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
   }
  }

@@ -21,25 +21,27 @@ package gov.nasa.jpf.listener;
 import gov.nasa.jpf.Config;
 import gov.nasa.jpf.ListenerAdapter;
 import gov.nasa.jpf.annotation.JPFOption;
-import gov.nasa.jpf.jvm.ClassInfo;
-import gov.nasa.jpf.jvm.ElementInfo;
-import gov.nasa.jpf.jvm.JVM;
-import gov.nasa.jpf.jvm.MethodInfo;
-import gov.nasa.jpf.jvm.ThreadInfo;
-import gov.nasa.jpf.jvm.bytecode.FieldInstruction;
-import gov.nasa.jpf.jvm.bytecode.InstanceFieldInstruction;
-import gov.nasa.jpf.jvm.bytecode.Instruction;
-import gov.nasa.jpf.jvm.bytecode.InvokeInstruction;
+import gov.nasa.jpf.jvm.bytecode.JVMFieldInstruction;
+import gov.nasa.jpf.jvm.bytecode.JVMInstanceFieldInstruction;
+import gov.nasa.jpf.jvm.bytecode.JVMInvokeInstruction;
 import gov.nasa.jpf.jvm.bytecode.LockInstruction;
 import gov.nasa.jpf.search.Search;
+import gov.nasa.jpf.vm.ChoiceGenerator;
+import gov.nasa.jpf.vm.ClassInfo;
+import gov.nasa.jpf.vm.ElementInfo;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.VM;
+import gov.nasa.jpf.vm.MethodInfo;
+import gov.nasa.jpf.vm.ThreadInfo;
 
 import java.io.PrintWriter;
 
 /**
- * Listener tool to monitor JPF execution. This class can be used as a drop-in
- * replacement for JPF, which is called by ExecTracker.
- * ExecTracker is mostly a VMListener of 'instructionExecuted' and
- * a SearchListener of 'stateAdvanced' and 'statehBacktracked'
+ * Listener tool to monitor JPF execution. This class can be used as a drop-in replacement for JPF, which is called by
+ * ExecTracker. ExecTracker is mostly a VMListener of 'instructionExecuted' and a SearchListener of 'stateAdvanced' and
+ * 'statehBacktracked'
+ * 
+ * NOTE - the ExecTracker is machine type agnostic
  */
 
 public class ExecTracker extends ListenerAdapter {
@@ -55,6 +57,8 @@ public class ExecTracker extends ListenerAdapter {
   
   @JPFOption(type = "Boolean", key = "et.skip_init", defaultValue = "true", comment = "do not log execution before entering main()")
   boolean skipInit = false;
+  
+  boolean showShared = false;
   
   PrintWriter out;
   String lastLine;
@@ -77,6 +81,8 @@ public class ExecTracker extends ListenerAdapter {
     /** @jpfoption et.skip_init : boolean - do not log execution before entering main() (default=true). */
     skipInit = config.getBoolean("et.skip_init", true);
     
+    showShared = config.getBoolean("et.show_shared", true);
+    
     if (skipInit) {
       skip = true;
     }
@@ -86,6 +92,7 @@ public class ExecTracker extends ListenerAdapter {
   
   /******************************************* SearchListener interface *****/
   
+  @Override
   public void stateRestored(Search search) {
     int id = search.getStateId();
     out.println("----------------------------------- [" +
@@ -93,16 +100,18 @@ public class ExecTracker extends ListenerAdapter {
   }
     
   //--- the ones we are interested in
+  @Override
   public void searchStarted(Search search) {
     out.println("----------------------------------- search started");
     if (skipInit) {
-      ClassInfo ci = search.getVM().getMainClassInfo();
-      miMain = ci.getMethod("main([Ljava/lang/String;)V", false);
+      ThreadInfo tiCurrent = ThreadInfo.getCurrentThread();
+      miMain = tiCurrent.getEntryMethod();
       
       out.println("      [skipping static init instructions]");
     }
   }
 
+  @Override
   public void stateAdvanced(Search search) {
     int id = search.getStateId();
     
@@ -125,12 +134,14 @@ public class ExecTracker extends ListenerAdapter {
     linePrefix = null;
   }
 
+  @Override
   public void stateProcessed (Search search) {
     int id = search.getStateId();
     out.println("----------------------------------- [" +
                        search.getDepth() + "] done: " + id);
   }
 
+  @Override
   public void stateBacktracked(Search search) {
     int id = search.getStateId();
 
@@ -141,30 +152,31 @@ public class ExecTracker extends ListenerAdapter {
                        search.getDepth() + "] backtrack: " + id);
   }
   
+  @Override
   public void searchFinished(Search search) {
     out.println("----------------------------------- search finished");
   }
 
   /******************************************* VMListener interface *********/
 
-  public void gcEnd(JVM vm) {
+  @Override
+  public void gcEnd(VM vm) {
     out.println("\t\t # garbage collection");
   }
 
   //--- the ones we are interested in
-  public void instructionExecuted(JVM jvm) {
+  @Override
+  public void instructionExecuted(VM vm, ThreadInfo ti, Instruction nextInsn, Instruction executedInsn) {
     
     if (skip) {
-      Instruction insn = jvm.getLastInstruction();
-      MethodInfo mi = insn.getMethodInfo();
+      MethodInfo mi = executedInsn.getMethodInfo();
       if (mi == miMain) {
         skip = false; // start recording
       } else {
         return;  // skip
       }
     }
-    
-    ThreadInfo ti = jvm.getLastThreadInfo();
+
     int nNoSrc = 0;
     
     if (linePrefix == null) {
@@ -173,9 +185,8 @@ public class ExecTracker extends ListenerAdapter {
     
     // that's pretty redundant to what is done in the ConsolePublisher, but we don't want 
     // presentation functionality in Step anymore
-    Instruction insn = jvm.getLastInstruction();
     if (printSrc) {
-      String line = insn.getSourceLine();
+      String line = executedInsn.getSourceLine();
       if (line != null){
         if (nNoSrc > 0) {
           out.println("            [" + nNoSrc + " insn w/o sources]");
@@ -183,7 +194,7 @@ public class ExecTracker extends ListenerAdapter {
 
         if (!line.equals(lastLine)) {
           out.print("            [");
-          out.print(insn.getFileLocation());
+          out.print(executedInsn.getFileLocation());
           out.print("] : ");
           out.println(line.trim());
         }
@@ -199,7 +210,7 @@ public class ExecTracker extends ListenerAdapter {
     
     if (printInsn) {      
       if (printMth) {
-        MethodInfo mi = insn.getMethodInfo();
+        MethodInfo mi = executedInsn.getMethodInfo();
         if (mi != lastMi){
           ClassInfo mci = mi.getClassInfo();
           out.print("      ");
@@ -214,58 +225,60 @@ public class ExecTracker extends ListenerAdapter {
       
       out.print( linePrefix);
       
-      out.print('[');
-      out.print(insn.getInstructionIndex());
-      out.print("] ");
+      out.printf("[%04x]   ", executedInsn.getPosition());
       
-      out.print(insn);
-        
-      // annotate (some of) the bytecode insns with their arguments
-      if (insn instanceof InvokeInstruction) {
-        MethodInfo callee = ((InvokeInstruction)insn).getInvokedMethod(); 
-        if ((callee != null) && callee.isMJI()) { // Huhh? why do we have to check this?
-          out.print(" [native]");
-        }
-      } else if (insn instanceof FieldInstruction) {
-        out.print(" ");
-        if (insn instanceof InstanceFieldInstruction){
-          InstanceFieldInstruction iinsn = (InstanceFieldInstruction)insn;
-          out.print(iinsn.getId(iinsn.getLastElementInfo()));
-        } else {
-          out.print(((FieldInstruction)insn).getVariableId());
-        }
-      } else if (insn instanceof LockInstruction) {
-        LockInstruction lockInsn = (LockInstruction)insn;
-        int lockRef = lockInsn.getLastLockRef();
-
-        out.print(" ");
-        out.print( ti.getElementInfo(lockRef));
-      }
-      out.println();
+      out.println( executedInsn.toPostExecString());
     }
   }
 
-  public void threadStarted(JVM jvm) {
-    ThreadInfo ti = jvm.getLastThreadInfo();
-
+  @Override
+  public void threadStarted(VM vm, ThreadInfo ti) {
     out.println( "\t\t # thread started: " + ti.getName() + " index: " + ti.getId());
   }
 
-  public void threadTerminated(JVM jvm) {
-    ThreadInfo ti = jvm.getLastThreadInfo();
-    
+  @Override
+  public void threadTerminated(VM vm, ThreadInfo ti) {
     out.println( "\t\t # thread terminated: " + ti.getName() + " index: " + ti.getId());
   }
   
-  public void notifyExceptionThrown (JVM jvm) {
-    ElementInfo ei = jvm.getLastElementInfo();
-    MethodInfo mi = jvm.getLastThreadInfo().getMethod();
+  @Override
+  public void exceptionThrown (VM vm, ThreadInfo ti, ElementInfo ei) {
+    MethodInfo mi = ti.getTopFrameMethodInfo();
     out.println("\t\t\t\t # exception: " + ei + " in " + mi);
   }
   
-  public void choiceGeneratorAdvanced (JVM jvm) {
-    out.println("\t\t # choice: " + jvm.getLastChoiceGenerator());
+  @Override
+  public void choiceGeneratorAdvanced (VM vm, ChoiceGenerator<?> currentCG) {
+    out.println("\t\t # choice: " + currentCG);
+    
+    //vm.dumpThreadStates();
   }
+  
+  @Override
+  public void objectExposed (VM vm, ThreadInfo currentThread, ElementInfo fieldOwnerObject, ElementInfo exposedObject) {
+    if (showShared){
+      String msg = "\t\t # exposed " + exposedObject;
+      if (fieldOwnerObject != null){
+        String ownerStatus = "";
+        if (fieldOwnerObject.isShared()){
+          ownerStatus = "shared ";
+        } else if (fieldOwnerObject.isExposed()){
+          ownerStatus = "exposed ";
+        }
+        
+        msg += " through " + ownerStatus + fieldOwnerObject;
+      }
+      out.println(msg);
+    }
+  }
+  
+  @Override
+  public void objectShared (VM vm, ThreadInfo currentThread, ElementInfo sharedObject) {
+    if (showShared){
+      out.println("\t\t # shared " + sharedObject);
+    }
+  }
+  
   
   /****************************************** private stuff ******/
 

@@ -18,12 +18,13 @@
 //
 package gov.nasa.jpf.jvm.bytecode;
 
-import gov.nasa.jpf.jvm.ClassInfo;
-import gov.nasa.jpf.jvm.ElementInfo;
-import gov.nasa.jpf.jvm.KernelState;
-import gov.nasa.jpf.jvm.MethodInfo;
-import gov.nasa.jpf.jvm.SystemState;
-import gov.nasa.jpf.jvm.ThreadInfo;
+import gov.nasa.jpf.vm.ClassInfo;
+import gov.nasa.jpf.vm.ClassLoaderInfo;
+import gov.nasa.jpf.vm.ElementInfo;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.LoadOnJPFRequired;
+import gov.nasa.jpf.vm.MethodInfo;
+import gov.nasa.jpf.vm.ThreadInfo;
 
 
 /**
@@ -44,7 +45,7 @@ public class INVOKESPECIAL extends InstanceInvocation {
     return 0xB7;
   }
 
-  public Instruction execute (SystemState ss, KernelState ks, ThreadInfo ti) {
+  public Instruction execute (ThreadInfo ti) {
     int argSize = getArgSize();
     int objRef = ti.getCalleeThis( argSize);
     lastObj = objRef;
@@ -52,21 +53,29 @@ public class INVOKESPECIAL extends InstanceInvocation {
     // we don't have to check for NULL objects since this is either a ctor, a 
     // private method, or a super method
 
-    MethodInfo mi = getInvokedMethod(ti);
+    MethodInfo callee;
+    
+    try {
+      callee = getInvokedMethod(ti);
+    } catch(LoadOnJPFRequired rre) {
+      return ti.getPC();
+    }      
 
-    if (mi == null){
+    if (callee == null){
       return ti.createAndThrowException("java.lang.NoSuchMethodException", "Calling " + cname + '.' + mname);
     }
 
-    ElementInfo ei = ks.heap.get(objRef);
-
-    if (mi.isSynchronized()){
-      if (checkSyncCG(ei, ss, ti)){
+    ElementInfo ei = ti.getElementInfo(objRef);
+    if (callee.isSynchronized()){
+      ei = ti.getScheduler().updateObjectSharedness(ti, ei, null); // locks most likely belong to shared objects
+      if (reschedulesLockAcquisition(ti, ei)){
         return this;
       }
     }
 
-    return mi.execute(ti);
+    setupCallee( ti, callee); // this creates, initializes and pushes the callee StackFrame
+
+    return ti.getPC(); // we can't just return the first callee insn if a listener throws an exception
   }
 
   /**
@@ -94,7 +103,7 @@ public class INVOKESPECIAL extends InstanceInvocation {
     // we don't have to deal with null object calls
 
     if (invokedMethod == null) {
-      ClassInfo ci = ClassInfo.getResolvedClassInfo(cname);
+      ClassInfo ci = ClassLoaderInfo.getCurrentResolvedClassInfo(cname);
       boolean recursiveLookup = (mname.charAt(0) != '<'); // no hierarchy lookup for <init>
       invokedMethod = ci.getMethod(mname, recursiveLookup);
     }
@@ -120,7 +129,7 @@ public class INVOKESPECIAL extends InstanceInvocation {
     return v;
   }
 
-  public void accept(InstructionVisitor insVisitor) {
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
   }
 }

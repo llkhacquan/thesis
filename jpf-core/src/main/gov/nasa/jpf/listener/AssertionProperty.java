@@ -21,15 +21,16 @@ package gov.nasa.jpf.listener;
 import gov.nasa.jpf.Config;
 import gov.nasa.jpf.JPF;
 import gov.nasa.jpf.PropertyListenerAdapter;
-import gov.nasa.jpf.jvm.ClassInfo;
-import gov.nasa.jpf.jvm.ElementInfo;
-import gov.nasa.jpf.jvm.Heap;
-import gov.nasa.jpf.jvm.JVM;
-import gov.nasa.jpf.jvm.ThreadInfo;
 import gov.nasa.jpf.jvm.bytecode.ATHROW;
-import gov.nasa.jpf.jvm.bytecode.Instruction;
 import gov.nasa.jpf.search.Search;
 import gov.nasa.jpf.util.JPFLogger;
+import gov.nasa.jpf.vm.ClassInfo;
+import gov.nasa.jpf.vm.ElementInfo;
+import gov.nasa.jpf.vm.Heap;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.VM;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.ThreadInfo;
 
 /**
  * this is a property listener that turns thrown AssertionErrors into
@@ -51,7 +52,8 @@ public class AssertionProperty extends PropertyListenerAdapter {
     goOn = config.getBoolean("ap.go_on",false);
   }
   
-  public boolean check(Search search, JVM vm) {
+  @Override
+  public boolean check(Search search, VM vm) {
     return (msg == null);
   }
 
@@ -74,16 +76,17 @@ public class AssertionProperty extends PropertyListenerAdapter {
     return s;
   }
 
-  public void executeInstruction (JVM vm){
-    Instruction insn = vm.getLastInstruction();
+  @Override
+  public void executeInstruction (VM vm, ThreadInfo ti, Instruction insn){
     
     if (insn instanceof ATHROW) {
-      ThreadInfo ti = vm.getLastThreadInfo();
       
       Heap heap = vm.getHeap();
-      int xobjref = ti.peek();
+      StackFrame frame = ti.getTopFrame();
+      int xobjref = frame.peek();
       ElementInfo ei = heap.get(xobjref);
       ClassInfo ci = ei.getClassInfo();
+      
       if (ci.getName().equals("java.lang.AssertionError")) {
         int msgref = ei.getReferenceField("detailMessage");
         ElementInfo eiMsg = heap.get(msgref);
@@ -95,17 +98,20 @@ public class AssertionProperty extends PropertyListenerAdapter {
         if (goOn) {
           log.warning(msg);
 
-          ti.pop(); // ensure operand stack integrity (ATHROW pops)
+          frame = ti.getModifiableTopFrame();
+          frame.pop(); // ensure operand stack integrity (ATHROW pops)
+          
           ti.skipInstruction(insn.getNext());
 
         } else {
           ti.skipInstruction(insn);
-          ti.breakTransition();
+          ti.breakTransition("assertion");
         }
       }
     }
   }
   
+  @Override
   public void reset() {
     msg = null;
   }

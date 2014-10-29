@@ -18,29 +18,36 @@
 //
 package gov.nasa.jpf.jvm;
 
-import gov.nasa.jpf.classfile.ClassFile;
-import gov.nasa.jpf.classfile.ClassFileException;
 import gov.nasa.jpf.jvm.bytecode.InstructionFactory;
+import gov.nasa.jpf.vm.ClassParseException;
+import gov.nasa.jpf.vm.NativePeer;
+import java.io.File;
 
 /**
  * just a helper construct to create ClassInfos that can be used in unit tests
  * (without superclasses, clinit calls and the other bells and whistles)
  */
-class NonResolvedClassInfo extends ClassInfo {
-  NonResolvedClassInfo (ClassFile cf) throws ClassFileException {
-    super(cf);
+class NonResolvedClassInfo extends JVMClassInfo {
+    
+  NonResolvedClassInfo (String clsName, File file) throws ClassParseException {
+    super( clsName, null, new ClassFile(file), file.getAbsolutePath(), new JVMCodeBuilder(new InstructionFactory()));
   }
 
-  protected ClassInfo loadSuperClass (String superName) {
+  //--- these are overridden so that we can create instances without the whole JPF ClassInfo environment
+  
+  @Override
+  protected void resolveClass() {
+    linkFields();
+  }
+
+  @Override
+  protected NativePeer loadNativePeer(){
     return null;
   }
-
-  protected CodeBuilder createCodeBuilder(){
-    InstructionFactory insnFactory = new InstructionFactory();
-    return new CodeBuilder(insnFactory, null, null);
+  
+  @Override
+  protected void setAssertionStatus(){
+    // nothing
   }
-
-  protected void checkAnnotationDefaultValues(AnnotationInfo ai){
-    // nothing - we don't want annotation types to be resolved
-  }
+  
 }

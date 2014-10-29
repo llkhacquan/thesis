@@ -18,33 +18,37 @@
 //
 package gov.nasa.jpf.jvm.bytecode;
 
-import gov.nasa.jpf.jvm.KernelState;
-import gov.nasa.jpf.jvm.SystemState;
-import gov.nasa.jpf.jvm.ThreadInfo;
-import gov.nasa.jpf.jvm.Types;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.ThreadInfo;
+import gov.nasa.jpf.vm.Types;
 
 
 /**
  * Add double
  * ..., value1, value2 => ..., result
  */
-public class DADD extends Instruction {
+public class DADD extends Instruction implements JVMInstruction {
 
-  public Instruction execute (SystemState ss, KernelState ks, ThreadInfo th) {
-    double v1 = Types.longToDouble(th.longPop());
-    double v2 = Types.longToDouble(th.longPop());
-    double r = v1 + v2;
+  public Instruction execute (ThreadInfo ti) {
+    StackFrame frame = ti.getModifiableTopFrame();
     
-    th.longPush(Types.doubleToLong(r));
+    double v1 = frame.popDouble();
+    double v2 = frame.popDouble();
+    
+    double r = v1 + v2;
 
-    return getNext(th);
+    frame.pushDouble(r);
+
+    return getNext(ti);
   }
 
   public int getByteCode () {
     return 0x63;
   }
   
-  public void accept(InstructionVisitor insVisitor) {
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
   }
 }

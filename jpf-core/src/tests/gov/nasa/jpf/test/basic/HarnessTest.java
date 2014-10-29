@@ -44,7 +44,7 @@ public class HarnessTest extends TestJPF {
 
   @Test
   public void verifyRuntimeException() {
-    if (verifyPropertyViolation(new TypeRef("gov.nasa.jpf.jvm.NoUncaughtExceptionsProperty"))) {
+    if (verifyPropertyViolation(new TypeRef("gov.nasa.jpf.vm.NoUncaughtExceptionsProperty"))) {
       System.out.println("** this is verifyRuntimeException() - JPF should find an unhandled exception");
 
       throw new RuntimeException("Bang!");
@@ -58,14 +58,14 @@ public class HarnessTest extends TestJPF {
     }
   }
 
+  // low level TestJPF API test
   @Test
-  public void recursive() {
-    JPF jpf;
-
-    jpf = noPropertyViolation("gov.nasa.jpf.util.test.TestJPFHelper", HarnessTest.class.getName(), "recursive");
+  public void testLowLevelAPI() {
+    
+    JPF jpf = noPropertyViolation();
 
     if (jpf == null) {
-      System.out.println("** this is low level API recursive - it should succeed");
+      System.out.println("** this is low level API test - it should succeed");
     } else {
       assert jpf.getSearchErrors().isEmpty() : "unexpected JPF search errors";
     }

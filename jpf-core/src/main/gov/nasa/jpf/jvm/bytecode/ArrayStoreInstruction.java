@@ -18,11 +18,14 @@
 //
 package gov.nasa.jpf.jvm.bytecode;
 
-import gov.nasa.jpf.jvm.ArrayIndexOutOfBoundsExecutiveException;
-import gov.nasa.jpf.jvm.ElementInfo;
-import gov.nasa.jpf.jvm.KernelState;
-import gov.nasa.jpf.jvm.SystemState;
-import gov.nasa.jpf.jvm.ThreadInfo;
+import gov.nasa.jpf.vm.bytecode.StoreInstruction;
+import gov.nasa.jpf.vm.ArrayIndexOutOfBoundsExecutiveException;
+import gov.nasa.jpf.vm.ElementInfo;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.MJIEnv;
+import gov.nasa.jpf.vm.Scheduler;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.ThreadInfo;
 
 
 /**
@@ -30,71 +33,80 @@ import gov.nasa.jpf.jvm.ThreadInfo;
  *
  *  ... array, index, <value> => ...
  */
-public abstract class ArrayStoreInstruction extends ArrayInstruction implements StoreInstruction {
+public abstract class ArrayStoreInstruction extends JVMArrayElementInstruction implements StoreInstruction, JVMInstruction {
 
-  public Instruction execute (SystemState ss, KernelState ks, ThreadInfo ti) {
-    int aref = peekArrayRef(ti); // need to be poly, could be LongArrayStore
-    if (aref == -1) {
-      return ti.createAndThrowException("java.lang.NullPointerException");
-    }
-
-    ElementInfo e = ti.getElementInfo(aref);
-
-    if (isNewPorBoundary(e, ti)) {
-      if (createAndSetArrayCG(ss,e,ti, aref, peekIndex(ti), false)) {
-        return this;
+  @Override
+  public Instruction execute (ThreadInfo ti) {
+    StackFrame frame = ti.getModifiableTopFrame();
+    int idx = peekIndex(ti);
+    int aref = peekArrayRef(ti); // need to be polymorphic, could be LongArrayStore
+    ElementInfo eiArray = ti.getElementInfo(aref);
+        
+    if (!ti.isFirstStepInsn()){ // first execution, top half
+      //--- runtime exceptions
+      if (aref == MJIEnv.NULL) {
+        return ti.createAndThrowException("java.lang.NullPointerException");
+      }
+    
+      //--- shared access CG
+      Scheduler scheduler = ti.getScheduler();
+      if (scheduler.canHaveSharedArrayCG(ti, this, eiArray, idx)){
+        eiArray = scheduler.updateArraySharedness(ti, eiArray, index);
+        if (scheduler.setsSharedArrayCG(ti, this, eiArray, idx)){
+          return this;
+        }
       }
     }
-
-    int esize = getElementSize();
-    Object attr = esize == 1 ? ti.getOperandAttr() : ti.getLongOperandAttr();
-
-    popValue(ti);
-    index = ti.pop();
-    // don't set 'arrayRef' before we do the CG check (would kill loop optimization)
-    arrayRef = ti.pop();
-
-    Instruction xInsn = checkArrayStoreException(ti, e);
-    if (xInsn != null){
-      return xInsn;
-    }
-
+    
     try {
-      setField(e, index);
-      e.setElementAttrNoClone(index,attr); // <2do> what if the value is the same but not the attr?
-      return getNext(ti);
-
+      setArrayElement(ti, frame, eiArray); // this pops operands
     } catch (ArrayIndexOutOfBoundsExecutiveException ex) { // at this point, the AIOBX is already processed
       return ex.getInstruction();
     }
+
+    return getNext(ti);
   }
 
+  protected void setArrayElement (ThreadInfo ti, StackFrame frame, ElementInfo eiArray) throws ArrayIndexOutOfBoundsExecutiveException {
+    int esize = getElementSize();
+    Object attr = esize == 1 ? frame.getOperandAttr() : frame.getLongOperandAttr();
+    
+    popValue(frame);
+    index = frame.pop();
+    // don't set 'arrayRef' before we do the CG checks (would kill loop optimization)
+    arrayRef = frame.pop();
+
+    eiArray = eiArray.getModifiableInstance();
+    setField(eiArray, index);
+    eiArray.setElementAttrNoClone(index,attr); // <2do> what if the value is the same but not the attr?
+  }
+  
   /**
    * this is for pre-exec use
    */
-  protected int peekArrayRef(ThreadInfo ti) {
-    return ti.peek(2);
+  @Override
+  public int peekArrayRef(ThreadInfo ti) {
+    return ti.getTopFrame().peek(2);
   }
 
-  protected int peekIndex(ThreadInfo ti){
-    return ti.peek(1);
+  @Override
+  public int peekIndex(ThreadInfo ti){
+    return ti.getTopFrame().peek(1);
   }
 
-  protected Instruction checkArrayStoreException(ThreadInfo ti, ElementInfo ei){
-    return null;
-  }
-
-  protected abstract void popValue(ThreadInfo ti);
-
+  protected abstract void popValue(StackFrame frame);
+ 
   protected abstract void setField (ElementInfo e, int index)
                     throws ArrayIndexOutOfBoundsExecutiveException;
 
 
+  @Override
   public boolean isRead() {
     return false;
   }
   
-  public void accept(InstructionVisitor insVisitor) {
+  @Override
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
   }
 

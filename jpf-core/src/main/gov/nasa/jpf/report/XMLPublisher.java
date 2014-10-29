@@ -3,15 +3,15 @@ package gov.nasa.jpf.report;
 import gov.nasa.jpf.Config;
 import gov.nasa.jpf.Error;
 import gov.nasa.jpf.JPF;
-import gov.nasa.jpf.jvm.ChoiceGenerator;
-import gov.nasa.jpf.jvm.ElementInfo;
-import gov.nasa.jpf.jvm.JVM;
-import gov.nasa.jpf.jvm.Path;
-import gov.nasa.jpf.jvm.StackFrame;
-import gov.nasa.jpf.jvm.Step;
-import gov.nasa.jpf.jvm.ThreadInfo;
-import gov.nasa.jpf.jvm.Transition;
 import gov.nasa.jpf.util.RepositoryEntry;
+import gov.nasa.jpf.vm.ChoiceGenerator;
+import gov.nasa.jpf.vm.ElementInfo;
+import gov.nasa.jpf.vm.VM;
+import gov.nasa.jpf.vm.Path;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.Step;
+import gov.nasa.jpf.vm.ThreadInfo;
+import gov.nasa.jpf.vm.Transition;
 
 import java.io.FileNotFoundException;
 import java.io.PrintWriter;
@@ -106,7 +106,7 @@ public class XMLPublisher extends Publisher {
   
   protected void publishSuT() {
     out.println("  <sut>");
-    String mainCls = conf.getTarget();
+    String mainCls = reporter.getSuT();
     if (mainCls != null) {
       String mainPath = reporter.getSuT();
       if (mainPath != null) {
@@ -201,7 +201,7 @@ public class XMLPublisher extends Publisher {
   }
   
   protected void publishSnapshot() {
-    JVM vm = reporter.getVM();
+    VM vm = reporter.getVM();
     
     out.println("  <live-threads>");
     for (ThreadInfo ti : vm.getLiveThreads()) {

@@ -20,13 +20,13 @@ package gov.nasa.jpf.listener;
 
 import gov.nasa.jpf.Config;
 import gov.nasa.jpf.ListenerAdapter;
-import gov.nasa.jpf.jvm.ElementInfo;
-import gov.nasa.jpf.jvm.JVM;
-import gov.nasa.jpf.jvm.StackFrame;
-import gov.nasa.jpf.jvm.ThreadInfo;
-import gov.nasa.jpf.jvm.bytecode.InstanceFieldInstruction;
+import gov.nasa.jpf.jvm.bytecode.JVMInstanceFieldInstruction;
 import gov.nasa.jpf.jvm.bytecode.InstanceInvocation;
-import gov.nasa.jpf.jvm.bytecode.Instruction;
+import gov.nasa.jpf.vm.ElementInfo;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.VM;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.ThreadInfo;
 
 import java.io.PrintWriter;
 import java.util.Arrays;
@@ -69,18 +69,17 @@ public class ReferenceLocator extends ListenerAdapter {
     pw.println();
   }
   
-  public void objectCreated (JVM vm){
-    ElementInfo ei = vm.getLastElementInfo();
+  @Override
+  public void objectCreated (VM vm, ThreadInfo ti, ElementInfo ei){
     int ref = ei.getObjectRef();
     
-    if (createRefs != null && Arrays.binarySearch(createRefs, ref) >= 0){
-      ThreadInfo ti = vm.getLastThreadInfo();      
+    if (createRefs != null && Arrays.binarySearch(createRefs, ref) >= 0){    
       printLocation("[ReferenceLocator] object " + ei + " created at:", ti);
     } 
   }
   
-  public void objectReleased (JVM vm){
-    ElementInfo ei = vm.getLastElementInfo();
+  @Override
+  public void objectReleased (VM vm, ThreadInfo ti, ElementInfo ei){
     int ref = ei.getObjectRef();
     
     if (releaseRefs != null && Arrays.binarySearch(releaseRefs, ref) >= 0){
@@ -88,18 +87,17 @@ public class ReferenceLocator extends ListenerAdapter {
     }
   }
   
-  public void instructionExecuted (JVM vm){
-    Instruction insn = vm.getLastInstruction();
-    ThreadInfo ti = vm.getLastThreadInfo();
+  @Override
+  public void instructionExecuted (VM vm, ThreadInfo ti, Instruction nextInsn, Instruction executedInsn){
     
     if (useRefs != null){
-      if (insn instanceof InstanceInvocation) {
-        int ref = ((InstanceInvocation)insn).getCalleeThis(ti);
+      if (executedInsn instanceof InstanceInvocation) {
+        int ref = ((InstanceInvocation)executedInsn).getCalleeThis(ti);
         if (Arrays.binarySearch(useRefs, ref) >= 0){
           printLocation("[ReferenceLocator] call on object " + ti.getElementInfo(ref) + " at:", ti);
         }
-      } else if (insn instanceof InstanceFieldInstruction){
-        int ref = ((InstanceFieldInstruction)insn).getLastThis();
+      } else if (executedInsn instanceof JVMInstanceFieldInstruction){
+        int ref = ((JVMInstanceFieldInstruction)executedInsn).getLastThis();
         if (Arrays.binarySearch(useRefs, ref) >= 0){
           printLocation("[ReferenceLocator] field access of " + ti.getElementInfo(ref) + " at:", ti);          
         }

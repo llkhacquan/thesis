@@ -20,10 +20,9 @@ package gov.nasa.jpf.test.mc.basic;
 
 
 import gov.nasa.jpf.ListenerAdapter;
-import gov.nasa.jpf.jvm.Verify;
 import gov.nasa.jpf.search.Search;
 import gov.nasa.jpf.util.test.TestJPF;
-import gov.nasa.jpf.util.test.TestJPFHelper;
+import gov.nasa.jpf.vm.Verify;
 
 import org.junit.Test;
 
@@ -45,7 +44,7 @@ public class VerifyTest extends TestJPF {
           x = 0;
         }
 
-        Verify.breakTransition(); // this should eventually state match
+        Verify.breakTransition("testBreakTransition"); // this should eventually state match
       }
 
       assert false : "we should never get here";
@@ -54,10 +53,10 @@ public class VerifyTest extends TestJPF {
 
   @Test public void testProperties () {
 
-    if (verifyNoPropertyViolation()) {
-      String target = Verify.getProperty("target");
-      System.out.println("got target=" + target);
-      assert target.equals(TestJPFHelper.class.getName());
+    if (verifyNoPropertyViolation("+hum=didum")) {
+      String target = Verify.getProperty("hum");
+      System.out.println("got hum=" + target);
+      assert target.equals("didum");
 
       Verify.setProperties("foo=bar");
       String p = Verify.getProperty("foo");
@@ -110,7 +109,7 @@ public class VerifyTest extends TestJPF {
   /**
    * This test ensures that stateBacktracked() is called even if the transistion 
    * is ignored.  This is important for listeners that keep a state that must 
-   * match the JVM's state exactly and the state is updated in the middle of 
+   * match the VM's state exactly and the state is updated in the middle of 
    * transitions.  This is not possible if a backtrack happens on an ignored 
    * transition and the stateBacktracked is not called.
    */
@@ -131,6 +130,7 @@ public class VerifyTest extends TestJPF {
 
     private static int m_backtrackedCount;
 
+    @Override
     public void stateBacktracked(Search search) {
       m_backtrackedCount++;
     }

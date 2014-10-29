@@ -20,15 +20,15 @@
 package gov.nasa.jpf.test.mc.basic;
 
 import gov.nasa.jpf.ListenerAdapter;
-import gov.nasa.jpf.jvm.ElementInfo;
-import gov.nasa.jpf.jvm.JVM;
-import gov.nasa.jpf.jvm.MethodInfo;
-import gov.nasa.jpf.jvm.ThreadInfo;
 import gov.nasa.jpf.jvm.bytecode.INVOKESTATIC;
-import gov.nasa.jpf.jvm.bytecode.Instruction;
-import gov.nasa.jpf.jvm.bytecode.InvokeInstruction;
+import gov.nasa.jpf.jvm.bytecode.JVMInvokeInstruction;
 import gov.nasa.jpf.jvm.bytecode.VirtualInvocation;
 import gov.nasa.jpf.util.test.TestJPF;
+import gov.nasa.jpf.vm.ElementInfo;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.VM;
+import gov.nasa.jpf.vm.MethodInfo;
+import gov.nasa.jpf.vm.ThreadInfo;
 
 import org.junit.Test;
 
@@ -41,12 +41,9 @@ public class InvokeListenerTest extends TestJPF {
   //--- this is only used outside JPF execution
   public static class Listener extends ListenerAdapter {
 
-    void checkArgs (JVM vm, boolean isPostExec){
-      Instruction insn = vm.getLastInstruction();
-
-      if (insn instanceof InvokeInstruction){
-        InvokeInstruction call = (InvokeInstruction)insn;
-        ThreadInfo ti = vm.getLastThreadInfo();
+    void checkArgs (ThreadInfo ti, Instruction insn, boolean isPostExec){
+      if (insn instanceof JVMInvokeInstruction){
+        JVMInvokeInstruction call = (JVMInvokeInstruction)insn;
         MethodInfo mi = call.getInvokedMethod(ti);
         String miSignature = mi.getUniqueName();
         String mname = mi.getName();
@@ -75,7 +72,7 @@ public class InvokeListenerTest extends TestJPF {
       }
     }
 
-    ElementInfo getTarget (ThreadInfo ti, InvokeInstruction call){
+    ElementInfo getTarget (ThreadInfo ti, JVMInvokeInstruction call){
       if (call instanceof VirtualInvocation){
         int objRef = ((VirtualInvocation)call).getCalleeThis(ti);
         return ti.getElementInfo(objRef);
@@ -101,12 +98,14 @@ public class InvokeListenerTest extends TestJPF {
       System.out.println(")");
     }
 
-    public void executeInstruction (JVM vm){
-      checkArgs(vm, false);
+    @Override
+    public void executeInstruction (VM vm, ThreadInfo ti, Instruction insnToExecute){
+      checkArgs(ti, insnToExecute, false);
     }
 
-    public void instructionExecuted (JVM vm){
-      checkArgs(vm, true);
+    @Override
+    public void instructionExecuted (VM vm, ThreadInfo ti, Instruction nextInsn, Instruction executedInsn){
+      checkArgs(ti, executedInsn, true);
     }
 
   }

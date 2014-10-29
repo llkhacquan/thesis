@@ -19,31 +19,31 @@
 package gov.nasa.jpf.jvm.bytecode;
 
 
-import gov.nasa.jpf.jvm.ClassInfo;
-import gov.nasa.jpf.jvm.ElementInfo;
-import gov.nasa.jpf.jvm.KernelState;
-import gov.nasa.jpf.jvm.MethodInfo;
-import gov.nasa.jpf.jvm.StaticElementInfo;
-import gov.nasa.jpf.jvm.SystemState;
-import gov.nasa.jpf.jvm.ThreadInfo;
-import gov.nasa.jpf.jvm.Types;
+import gov.nasa.jpf.vm.ClassInfo;
+import gov.nasa.jpf.vm.ClassLoaderInfo;
+import gov.nasa.jpf.vm.ElementInfo;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.LoadOnJPFRequired;
+import gov.nasa.jpf.vm.MethodInfo;
+import gov.nasa.jpf.vm.StaticElementInfo;
+import gov.nasa.jpf.vm.ThreadInfo;
+import gov.nasa.jpf.vm.Types;
 
 
 /**
  * Invoke a class (static) method
  * ..., [arg1, [arg2 ...]]  => ...
  */
-public class INVOKESTATIC extends InvokeInstruction {
+public class INVOKESTATIC extends JVMInvokeInstruction {
   ClassInfo ci;
   
   protected INVOKESTATIC (String clsDescriptor, String methodName, String signature){
     super(clsDescriptor, methodName, signature);
   }
 
-
   protected ClassInfo getClassInfo () {
     if (ci == null) {
-      ci = ClassInfo.getResolvedClassInfo(cname);
+      ci = ClassLoaderInfo.getCurrentResolvedClassInfo(cname);
     }
     return ci;
   }
@@ -52,6 +52,21 @@ public class INVOKESTATIC extends InvokeInstruction {
     return 0xB8;
   }
 
+  @Override
+  public String toPostExecString(){
+    StringBuilder sb = new StringBuilder();
+    sb.append(getMnemonic());
+    sb.append(' ');
+    sb.append( invokedMethod.getFullName());
+
+    if (invokedMethod.isMJI()){
+      sb.append(" [native]");
+    }
+    
+    return sb.toString();
+
+  }
+  
   public StaticElementInfo getStaticElementInfo (){
     return getClassInfo().getStaticElementInfo();
   }
@@ -60,69 +75,69 @@ public class INVOKESTATIC extends InvokeInstruction {
     return getClassInfo().getStaticElementInfo().getClassObjectRef();
   }
 
-  public boolean isExecutable (SystemState ss, KernelState ks, ThreadInfo ti) {
-    MethodInfo mi = getInvokedMethod();
-    if (mi == null) {
-      return true; // execute so that we get the exception
-    }
-
-    return mi.isExecutable(ti);
-  }
-
-  public boolean examineAbstraction (SystemState ss, KernelState ks,
-                                     ThreadInfo ti) {
-    MethodInfo mi = getInvokedMethod(ti);
-
-   if (mi == null) {
-      return true;
-    }
-
-    return !ci.isStaticMethodAbstractionDeterministic(ti, mi);
-  }
-
-  public Instruction execute (SystemState ss, KernelState ks, ThreadInfo ti) {
+  public Instruction execute (ThreadInfo ti) {
+    MethodInfo callee;
     
-    // need to check first if we can find the class
-    ClassInfo clsInfo = getClassInfo();
-    if (clsInfo == null){
-      return ti.createAndThrowException("java.lang.NoClassDefFoundError", cname);
+    try {
+      callee = getInvokedMethod(ti);
+    } catch (LoadOnJPFRequired lre) {
+      return ti.getPC();
     }
-
-    MethodInfo callee = getInvokedMethod(ti);
+        
     if (callee == null) {
-      return ti.createAndThrowException("java.lang.NoSuchMethodException",
-                                   cname + '.' + mname);
+      return ti.createAndThrowException("java.lang.NoSuchMethodException", cname + '.' + mname);
     }
 
     // this can be actually different than (can be a base)
-    clsInfo = callee.getClassInfo();
+    ClassInfo ciCallee = callee.getClassInfo();
     
-    if (requiresClinitExecution(ti, clsInfo)) {
+    if (ciCallee.pushRequiredClinits(ti)) {
       // do class initialization before continuing
+      // note - this returns the next insn in the topmost clinit that just got pushed
       return ti.getPC();
     }
 
     if (callee.isSynchronized()) {
-      ElementInfo ei = clsInfo.getClassObject();
-      if (checkSyncCG(ei, ss, ti)){
+      ElementInfo ei = ciCallee.getClassObject();
+      ei = ti.getScheduler().updateObjectSharedness(ti, ei, null); // locks most likely belong to shared objects
+      
+      if (reschedulesLockAcquisition(ti, ei)){
         return this;
       }
     }
         
-    // enter the method body, return its first insn
-    return callee.execute(ti);
+    setupCallee( ti, callee); // this creates, initializes and pushes the callee StackFrame
+
+    return ti.getPC(); // we can't just return the first callee insn if a listener throws an exception
+  }
+
+  public MethodInfo getInvokedMethod(){
+    if (invokedMethod != null){
+      return invokedMethod;
+    } else {
+      // Hmm, this would be pre-exec, but if the current thread is not the one executing the insn 
+      // this might result in false sharedness of the class object
+      return getInvokedMethod( ThreadInfo.getCurrentThread());
+    }
   }
   
   public MethodInfo getInvokedMethod (ThreadInfo ti){
-    return getInvokedMethod(); 
-  }
-  
-  public MethodInfo getInvokedMethod () {
     if (invokedMethod == null) {
       ClassInfo clsInfo = getClassInfo();
       if (clsInfo != null){
-        invokedMethod = clsInfo.getMethod(mname, true);
-      }
+        MethodInfo callee = clsInfo.getMethod(mname, true);
+        if (callee != null){
+          ClassInfo ciCallee = callee.getClassInfo(); // might be a superclass of ci, i.e. not what is referenced in the insn
+
+          if (!ciCallee.isRegistered()){
+            // if it wasn't registered yet, classLoaded listeners didn't have a chance yet to modify it..
+            ciCallee.registerClass(ti);
+            // .. and might replace/remove MethodInfos
+            callee = clsInfo.getMethod(mname, true);
+          }
+          invokedMethod = callee;
+        }
+      }    
     }
     return invokedMethod;
   }
@@ -154,8 +169,28 @@ public class INVOKESTATIC extends InvokeInstruction {
     return getClassInfo().getStaticFieldValueObject(id);
   }
   
-  public void accept(InstructionVisitor insVisitor) {
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
+  }
+
+  @Override
+  public Instruction typeSafeClone(MethodInfo mi) {
+    INVOKESTATIC clone = null;
+
+    try {
+      clone = (INVOKESTATIC) super.clone();
+
+      // reset the method that this insn belongs to
+      clone.mi = mi;
+
+      clone.invokedMethod = null;
+      clone.lastObj = Integer.MIN_VALUE;
+      clone.ci = null;
+    } catch (CloneNotSupportedException e) {
+      e.printStackTrace();
+    }
+
+    return clone;
   }
 }
 

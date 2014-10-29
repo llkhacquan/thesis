@@ -18,15 +18,17 @@
 //
 package gov.nasa.jpf.jvm.bytecode;
 
-import gov.nasa.jpf.jvm.ElementInfo;
-import gov.nasa.jpf.jvm.ThreadInfo;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.ElementInfo;
+import gov.nasa.jpf.vm.MJIEnv;
+import gov.nasa.jpf.vm.ThreadInfo;
 
 
 /**
  * common root for MONITORENTER/EXIT
  */
-public abstract class LockInstruction extends Instruction {
-  int lastLockRef = -1;
+public abstract class LockInstruction extends Instruction implements JVMInstruction {
+  int lastLockRef = MJIEnv.NULL;
 
   /**
     * only useful post-execution (in an instructionExecuted() notification)
@@ -34,16 +36,18 @@ public abstract class LockInstruction extends Instruction {
   public int getLastLockRef () {
     return lastLockRef;
   }
-  
-  /**
-   * If the current thread already owns the lock, then the current thread can go on.
-   * For example, this is a recursive acquisition.
-   */
-  protected boolean isLockOwner(ThreadInfo ti, ElementInfo ei) {
-    return ei.getLockingThread() == ti;
+
+  @Override
+  public String toPostExecString(){
+    StringBuilder sb = new StringBuilder();
+    sb.append(getMnemonic());
+    sb.append(" @");
+    sb.append( Integer.toHexString(lastLockRef));
+    
+    return sb.toString();
   }
   
-  public void accept(InstructionVisitor insVisitor) {
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
   }
 }

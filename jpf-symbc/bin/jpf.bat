@@ -6,7 +6,6 @@ REM
 
 REM Set the JPF_HOME directory
 set JPF_HOME=%~dp0..
-echo "%JPF_HOME%"
 
 set JVM_FLAGS=-Xmx1024m -ea
 

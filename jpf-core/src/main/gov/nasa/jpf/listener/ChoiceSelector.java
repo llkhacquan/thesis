@@ -24,14 +24,14 @@ import gov.nasa.jpf.JPF;
 import gov.nasa.jpf.ListenerAdapter;
 import gov.nasa.jpf.annotation.JPFOption;
 import gov.nasa.jpf.annotation.JPFOptions;
-import gov.nasa.jpf.jvm.ChoiceGenerator;
-import gov.nasa.jpf.jvm.ChoicePoint;
-import gov.nasa.jpf.jvm.JVM;
-import gov.nasa.jpf.jvm.ThreadInfo;
-import gov.nasa.jpf.jvm.bytecode.Instruction;
-import gov.nasa.jpf.jvm.bytecode.InvokeInstruction;
+import gov.nasa.jpf.jvm.bytecode.JVMInvokeInstruction;
 import gov.nasa.jpf.search.Search;
 import gov.nasa.jpf.util.StringSetMatcher;
+import gov.nasa.jpf.vm.ChoiceGenerator;
+import gov.nasa.jpf.vm.ChoicePoint;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.VM;
+import gov.nasa.jpf.vm.ThreadInfo;
 
 import java.util.Random;
 
@@ -102,9 +102,8 @@ public class ChoiceSelector extends ListenerAdapter {
       depthReached = false;
     }
 
-    JVM vm = jpf.getVM();
-    trace = ChoicePoint.readTrace(config.getString("choice.use_trace"),
-                                       vm.getMainClassName(), vm.getArgs());
+    VM vm = jpf.getVM();
+    trace = ChoicePoint.readTrace(config.getString("choice.use_trace"), vm.getSUTName());
     searchAfterTrace = config.getBoolean("choice.search_after_trace", true);
     vm.setTraceReplay(trace != null);
   }
@@ -113,32 +112,33 @@ public class ChoiceSelector extends ListenerAdapter {
     singleChoice = !(depthReached && callSeen && threadsAlive);
   }
 
-  public void choiceGeneratorAdvanced (JVM vm) {
-    ChoiceGenerator<?> cg = vm.getLastChoiceGenerator();
-    int n = cg.getTotalNumberOfChoices();
+  @Override
+  public void choiceGeneratorAdvanced (VM vm, ChoiceGenerator<?> currentCG) {
+    int n = currentCG.getTotalNumberOfChoices();
 
     if (trace != null) { // this is a replay
 
       // <2do> maybe that should just be a warning, and then a single choice
-      assert cg.getClass().getName().equals(trace.getCgClassName()) :
+      assert currentCG.getClass().getName().equals(trace.getCgClassName()) :
         "wrong choice generator class, expecting: " + trace.getCgClassName()
-        + ", read: " + cg.getClass().getName();
+        + ", read: " + currentCG.getClass().getName();
 
-      cg.select(trace.getChoice());
+      int choiceIndex = trace.getChoiceIndex();
+      currentCG.select(choiceIndex);
 
     } else {
       if (singleChoice) {
         if (n > 1) {
           int r = random.nextInt(n);
-          cg.select(r); // sets it done, so we never backtrack into it
+          currentCG.select(r); // sets it done, so we never backtrack into it
         }
       }
     }
   }
 
-  public void threadStarted(JVM vm) {
+  @Override
+  public void threadStarted(VM vm, ThreadInfo ti) {
     if (singleChoice && (threadSet != null)) {
-      ThreadInfo ti = vm.getLastThreadInfo();
       String tname = ti.getName();
       if (threadSet.matchesAny( tname)){
         threadsAlive = true;
@@ -147,12 +147,11 @@ public class ChoiceSelector extends ListenerAdapter {
     }
   }
 
-  public void executeInstruction(JVM vm) {
+  @Override
+  public void executeInstruction(VM vm, ThreadInfo ti, Instruction insnToExecute) {
     if (singleChoice && !callSeen && (calls != null)) {
-      Instruction insn = vm.getLastInstruction();
-      ThreadInfo ti = vm.getLastThreadInfo();
-      if (insn instanceof InvokeInstruction) {
-        String mthName = ((InvokeInstruction)insn).getInvokedMethod(ti).getBaseName();
+      if (insnToExecute instanceof JVMInvokeInstruction) {
+        String mthName = ((JVMInvokeInstruction)insnToExecute).getInvokedMethod(ti).getBaseName();
 
         if (calls.matchesAny(mthName)){
           callSeen = true;
@@ -162,6 +161,7 @@ public class ChoiceSelector extends ListenerAdapter {
     }
   }
 
+  @Override
   public void stateAdvanced(Search search) {
 
     if (trace != null) {

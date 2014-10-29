@@ -22,15 +22,15 @@ import gov.nasa.jpf.Config;
 import gov.nasa.jpf.JPF;
 import gov.nasa.jpf.JPFConfigException;
 import gov.nasa.jpf.PropertyListenerAdapter;
-import gov.nasa.jpf.jvm.ClassInfo;
-import gov.nasa.jpf.jvm.JVM;
-import gov.nasa.jpf.jvm.MethodInfo;
-import gov.nasa.jpf.jvm.ThreadInfo;
 import gov.nasa.jpf.jvm.bytecode.ArrayStoreInstruction;
-import gov.nasa.jpf.jvm.bytecode.Instruction;
-import gov.nasa.jpf.jvm.bytecode.InvokeInstruction;
+import gov.nasa.jpf.jvm.bytecode.JVMInvokeInstruction;
 import gov.nasa.jpf.search.Search;
 import gov.nasa.jpf.util.DynamicObjectArray;
+import gov.nasa.jpf.vm.ClassInfo;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.VM;
+import gov.nasa.jpf.vm.MethodInfo;
+import gov.nasa.jpf.vm.ThreadInfo;
 
 import java.util.logging.Logger;
 
@@ -119,6 +119,7 @@ public class IdleFilter extends PropertyListenerAdapter {
 
   }
   
+  @Override
   public void stateAdvanced(Search search) {
     ts.backJumps = 0;
     ts.isCleared = false;
@@ -128,6 +129,7 @@ public class IdleFilter extends PropertyListenerAdapter {
     brokeTransition = false;
   }
 
+  @Override
   public void stateBacktracked(Search search) {
     ts.backJumps = 0;
     ts.isCleared = false;
@@ -136,9 +138,8 @@ public class IdleFilter extends PropertyListenerAdapter {
   }
 
   // ----------------------------------------------------- VMListener interface
-  public void instructionExecuted(JVM jvm) {
-    Instruction insn = jvm.getLastInstruction();
-    ThreadInfo ti = jvm.getLastThreadInfo();
+  @Override
+  public void instructionExecuted(VM vm, ThreadInfo ti, Instruction nextInsn, Instruction executedInsn) {
 
     int tid = ti.getId();
     ts = threadStats.get(tid);
@@ -147,35 +148,35 @@ public class IdleFilter extends PropertyListenerAdapter {
       threadStats.set(tid, ts);
     }
 
-    if (insn.isBackJump()) {
+    if (executedInsn.isBackJump()) {
       ts.backJumps++;
 
       int loopStackDepth = ti.getStackDepth();
-      int loopPc = jvm.getNextInstruction().getPosition();
+      int loopPc = nextInsn.getPosition();
 
       if ((loopStackDepth != ts.loopStackDepth) || (loopPc != ts.loopStartPc)) {
         // new loop, reset
         ts.isCleared = false;
         ts.loopStackDepth = loopStackDepth;
         ts.loopStartPc = loopPc;
-        ts.loopEndPc = insn.getPosition();
+        ts.loopEndPc = executedInsn.getPosition();
         ts.backJumps = 0;
         
       } else {
         if (!ts.isCleared) {
           if (ts.backJumps > maxBackJumps) {
 
-            ti.reschedule(false); // this breaks the executePorStep loop
-            MethodInfo mi = insn.getMethodInfo();
+            ti.reschedule("idleFilter"); // this breaks the executePorStep loop
+            MethodInfo mi = executedInsn.getMethodInfo();
             ClassInfo ci = mi.getClassInfo();
-            int line = mi.getLineNumber(insn);
+            int line = mi.getLineNumber(executedInsn);
             String file = ci.getSourceFileName();
 
             switch (action) {
               case JUMP:
                 // pretty bold, we jump past the loop end and go on from there
 
-                Instruction next = insn.getNext();
+                Instruction next = executedInsn.getNext();
                 ti.setNextPC(next);
 
                 log.warning("jumped past loop in: " + ti.getName() +
@@ -184,7 +185,7 @@ public class IdleFilter extends PropertyListenerAdapter {
 
               case PRUNE:
                 // cut this sucker off - we declare this a visited state
-                jvm.ignoreState();
+                vm.ignoreState();
                 log.warning("pruned thread: " + ti.getName() +
                         "\n\tat " + ci.getName() + "." + mi.getName() + "(" + file + ":" + line + ")");
                 break;
@@ -192,7 +193,7 @@ public class IdleFilter extends PropertyListenerAdapter {
               case BREAK:
                 // just break the transition and let the state matching take over
                 brokeTransition = true;
-                ti.breakTransition();
+                ti.breakTransition("breakIdleLoop");
 
                 log.warning("breaks transition on suspicious loop in thread: " + ti.getName() +
                         "\n\tat " + ci.getName() + "." + mi.getName() + "(" + file + ":" + line + ")");
@@ -224,10 +225,10 @@ public class IdleFilter extends PropertyListenerAdapter {
       // we assume this is not an idle loop and terminate the checks
       // <2do> this is too restrictive - we should leave this to state matching
       
-      if ((insn instanceof InvokeInstruction)
-          || (insn instanceof ArrayStoreInstruction)) {
+      if ((executedInsn instanceof JVMInvokeInstruction)
+          || (executedInsn instanceof ArrayStoreInstruction)) {
         int stackDepth = ti.getStackDepth();
-        int pc = insn.getPosition();
+        int pc = executedInsn.getPosition();
 
         if (stackDepth == ts.loopStackDepth) {
           if ((pc >= ts.loopStartPc) && (pc < ts.loopEndPc)) {
@@ -239,8 +240,8 @@ public class IdleFilter extends PropertyListenerAdapter {
   }
   
   // thread ids are reused, so we have to clean up
-  public void threadTerminated (JVM jvm){
-    ThreadInfo ti = jvm.getLastThreadInfo();
+  @Override
+  public void threadTerminated (VM vm, ThreadInfo ti){
     int tid = ti.getId();
     threadStats.set(tid, null);
   }

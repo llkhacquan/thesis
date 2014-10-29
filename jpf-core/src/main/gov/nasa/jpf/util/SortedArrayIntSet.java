@@ -89,17 +89,27 @@ public class SortedArrayIntSet extends ArrayIntSet {
   
   
   //--- public methods
+  
+  public SortedArrayIntSet (){
+    // nothing
+  }
+  
+  public SortedArrayIntSet (int initialCapacity){
+    super(initialCapacity);
+  }
+  
   @Override
   public boolean contains (int v) {
     return ((size > 0) && elements[bisect(v)] == v);      
   }
   
   @Override
-  public void add (int v){
+  public boolean add (int v){
     if (size == 0){
       elements = new int[DEFAULT_CAPACITY];
       elements[0] = v;
       size++;
+      return true;
       
     } else {
       int i = bisect(v);
@@ -112,12 +122,16 @@ public class SortedArrayIntSet extends ArrayIntSet {
         insertElement(i);
         elements[i] = v;
         size++;
+        return true;
+        
+      } else {
+        return false; // was already there
       }
     }
   }
     
   @Override
-  public void remove (int v) {
+  public boolean remove (int v) {
     int len = size;
     
     if (len > 0){
@@ -125,15 +139,22 @@ public class SortedArrayIntSet extends ArrayIntSet {
       int i = bisect(v);
       if (a[i] == v) {
         len--;
-        if (i < len) {
-          System.arraycopy(a, i + 1, a, i, (len - i));
-        } else if (len == 0){
+        if (len == 0){
           elements = null;
+          size = 0;
+          
+        } else {
+          if (i < len){
+            System.arraycopy(a, i + 1, a, i, (len - i));          
+          }
+          size = len;
         }
-        size--;
-        return;
+        
+        return true;
       }
-    }    
+    }
+    
+    return false; // wasn't there
   }
   
 }

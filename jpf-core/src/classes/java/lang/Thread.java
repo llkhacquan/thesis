@@ -41,13 +41,6 @@ public class Thread implements Runnable {
 
   // don't rename this - it's used by ThreadGoup.uncaughtException()
   private static volatile UncaughtExceptionHandler defaultUncaughtExceptionHandler; // null by default
-
-  
-  // JPF internal identifier - according to the Java specs, thread ids can be reused.
-  // We keep ids until the thread object is recycled, i.e. there are never two live thread
-  // objects that have the same id (regardless of whether the threads are already terminated or not)
-  int id;
-  
   
   // initialized in init(), except of the main thread (which gets explicitly initialized by the VM)
   ThreadGroup group;
@@ -68,7 +61,7 @@ public class Thread implements Runnable {
   ThreadLocal.ThreadLocalMap inheritableThreadLocals;
 
   // this is what we use for sun.misc.Unsafe.park()/unpark()
-  // this is accessed from the native peer, JVM.createMainThread() and sun.misc.Unsafe
+  // this is accessed from the native peer, VM.createMainThread() and sun.misc.Unsafe
   static class Permit {
     boolean blockPark = true; // this is used to remember unpark() calls before park() (they don't accumulate)
   }
@@ -190,9 +183,7 @@ public class Thread implements Runnable {
     return isDaemon;
   }
 
-  public long getId(){
-    return id;
-  }
+  public native long getId();
 
   public StackTraceElement[] getStackTrace() {
     return null; // not yet implemented
@@ -360,17 +351,21 @@ public class Thread implements Runnable {
   /**
    * automatically called by system upon thread termination to clean up
    * references.
+   * 
    * NOTE - we clean up atomically during ThreadInfo.finish(), to avoid any
-   * additional states
+   * additional states. This is important since group per se is a shared object
+   * We only include this method here as a specification for ThreadInfo
    */
   private void exit () {
-    // apparently some older javac on Solaris chokes on this, but it's perfectly fine
-    //group.remove(this);
-    //group = null;
-
-    //threadLocals = null;
-    //inheritableThreadLocals = null;
-    //parkBlocker = null;
+    if (group != null){
+      group.threadTerminated(this);
+      group = null;
+    }
+    
+    threadLocals = null;
+    inheritableThreadLocals = null;
+    parkBlocker = null;
+    uncaughtExceptionHandler = null;
   }
 
   // some Java 6 mojo

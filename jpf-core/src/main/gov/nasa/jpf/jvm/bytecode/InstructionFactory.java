@@ -20,25 +20,22 @@
 package gov.nasa.jpf.jvm.bytecode;
 
 import gov.nasa.jpf.JPFException;
-import gov.nasa.jpf.jvm.ClassInfo;
-import gov.nasa.jpf.jvm.MethodInfo;
-import gov.nasa.jpf.jvm.NativeMethodInfo;
+import gov.nasa.jpf.jvm.JVMInstructionFactory;
 import gov.nasa.jpf.util.Invocation;
+import gov.nasa.jpf.vm.ClassInfo;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.MethodInfo;
+import gov.nasa.jpf.vm.NativeMethodInfo;
 
 import java.util.List;
 
 /**
- * this is the new InstructionFactory
+ * this is the new JVMInstructionFactory
  */
-public class InstructionFactory implements gov.nasa.jpf.jvm.InstructionFactory {
+public class InstructionFactory extends JVMInstructionFactory {
 
   public InstructionFactory(){
     // nothing here
-  }
-
-  @Override
-  public void setClassInfoContext( ClassInfo ci){
-    // nothing, we keep this stateless
   }
 
   @Override
@@ -1109,7 +1106,7 @@ public class InstructionFactory implements gov.nasa.jpf.jvm.InstructionFactory {
   // this is never part of MethodInfo stored code
   @Override
   public Instruction runstart(MethodInfo miRun){
-    return new RUNSTART(miRun);
+    return new RUNSTART();
   }
 
 }

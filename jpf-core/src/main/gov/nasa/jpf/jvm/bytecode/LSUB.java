@@ -18,31 +18,39 @@
 //
 package gov.nasa.jpf.jvm.bytecode;
 
-import gov.nasa.jpf.jvm.KernelState;
-import gov.nasa.jpf.jvm.SystemState;
-import gov.nasa.jpf.jvm.ThreadInfo;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.ThreadInfo;
 
 
 /**
  * Subtract long
  * ..., value1, value2 => ..., result
  */
-public class LSUB extends Instruction {
+public class LSUB extends Instruction implements JVMInstruction {
 
-  public Instruction execute (SystemState ss, KernelState ks, ThreadInfo th) {
-    long v1 = th.longPop();
-    long v2 = th.longPop();
+  @Override
+  public Instruction execute (ThreadInfo ti) {
+    StackFrame frame = ti.getModifiableTopFrame();
+    
+    long v1 = frame.popLong();
+    long v2 = frame.popLong();
+    
+    long r = v2 - v1;
+    
+    frame.pushLong(r);
 
-    th.longPush(v2 - v1);
-
-    return getNext(th);
+    return getNext(ti);
   }
 
+  @Override
   public int getByteCode () {
     return 0x65;
   }
   
-  public void accept(InstructionVisitor insVisitor) {
+  @Override
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
   }
 }

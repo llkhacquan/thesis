@@ -19,8 +19,8 @@
 package gov.nasa.jpf.test.mc.basic;
 
 
-import gov.nasa.jpf.jvm.Verify;
 import gov.nasa.jpf.util.test.TestJPF;
+import gov.nasa.jpf.vm.Verify;
 
 import java.io.File;
 
@@ -30,10 +30,6 @@ public class TraceTest extends TestJPF {
 
   static final String TEST_CLASS = TraceTest.class.getName();
   static final String TRACE = "trace";
-
-  public static void main(String[] args) {    // <2do> Fix this test so that it doesn't require main
-    runTestsOfThisClass(args);
-  }
 
   // the method run by JPF
   public void foo () {
@@ -52,7 +48,8 @@ public class TraceTest extends TestJPF {
   }
 
   // the method that runs JPF
-  @Test public void testPartialTrace () {
+  @Test
+  public void testPartialTrace () {
     File tf = new File(TRACE);
 
     try {
@@ -62,16 +59,15 @@ public class TraceTest extends TestJPF {
       Verify.resetCounter(0);
 
       // first JPF run
-      noPropertyViolation(TEST_CLASS, "foo");
+      noPropertyViolation(setTestMethod(TEST_CLASS, "foo"));
 
       if (Verify.getCounter(0) != 1) {
         fail("wrong number of backtracks on non-replay run: " + Verify.getCounter(0));
       }
 
       // second JPF run
-      noPropertyViolation("+listener=.listener.ChoiceSelector",
-              "+choice.use_trace=" + TRACE,
-              TEST_CLASS, "foo");
+      noPropertyViolation( setTestMethod(TEST_CLASS, "foo"), "+listener=.listener.ChoiceSelector",
+              "+choice.use_trace=" + TRACE);
 
       if (Verify.getCounter(0) != 5) {
         fail("wrong number of backtracks on replay run: " + Verify.getCounter(0));
@@ -91,6 +87,9 @@ public class TraceTest extends TestJPF {
     boolean b1 = Verify.getBoolean();
     int i4 = Verify.getInt(0,3);
 
+    System.out.printf("%d,%d,%d,%b,%d\n", i1, i2, i3, b1, i4);
+    
+    
     assert !(i1 == 0 && i2 == 1 && i3 == 2 && b1 && i4 == 3);
   }
 
@@ -104,14 +103,12 @@ public class TraceTest extends TestJPF {
       }
 
       // first JPF run
-      assertionError("+listener=.listener.TraceStorer",
-                     "+trace.file=" + TRACE,
-                     TEST_CLASS, "bar");
+      System.out.println("--- creating trace");
+      assertionError(setTestMethod("bar"), "+listener=.listener.TraceStorer", "+trace.file=" + TRACE);
 
       // second JPF run
-      assertionError("+listener=.listener.ChoiceSelector",
-                     "+choice.use_trace=" + TRACE,
-                     TEST_CLASS, "bar");
+      System.out.println("--- replaying trace");
+      assertionError(setTestMethod("bar"), "+listener=.listener.ChoiceSelector","+choice.use_trace=" + TRACE);
     } finally {
       tf.delete();
     }

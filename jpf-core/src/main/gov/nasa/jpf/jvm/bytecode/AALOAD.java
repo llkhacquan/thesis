@@ -18,9 +18,10 @@
 //
 package gov.nasa.jpf.jvm.bytecode;
 
-import gov.nasa.jpf.jvm.ArrayIndexOutOfBoundsExecutiveException;
-import gov.nasa.jpf.jvm.ElementInfo;
-import gov.nasa.jpf.jvm.ThreadInfo;
+import gov.nasa.jpf.vm.ArrayIndexOutOfBoundsExecutiveException;
+import gov.nasa.jpf.vm.ElementInfo;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.ThreadInfo;
 
 /**
  * Load reference from array
@@ -28,10 +29,15 @@ import gov.nasa.jpf.jvm.ThreadInfo;
  */
 public class AALOAD extends ArrayLoadInstruction {
 
-  protected void push (ThreadInfo ti, ElementInfo ei, int index) throws ArrayIndexOutOfBoundsExecutiveException {
+  @Override
+  public boolean isReferenceArray() {
+    return true;
+  }
+  
+  protected void push (StackFrame frame, ElementInfo ei, int index) throws ArrayIndexOutOfBoundsExecutiveException {
     ei.checkArrayBounds(index);
     int value = ei.getReferenceElement(index);
-    ti.pushRef( value);
+    frame.pushRef( value);
   }
 
 
@@ -43,7 +49,7 @@ public class AALOAD extends ArrayLoadInstruction {
     return 0x32;
   }
 
-  public void accept(InstructionVisitor insVisitor) {
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
   }
 }

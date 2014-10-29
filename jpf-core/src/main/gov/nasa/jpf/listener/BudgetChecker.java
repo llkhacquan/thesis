@@ -23,9 +23,11 @@ import gov.nasa.jpf.JPF;
 import gov.nasa.jpf.ListenerAdapter;
 import gov.nasa.jpf.annotation.JPFOption;
 import gov.nasa.jpf.annotation.JPFOptions;
-import gov.nasa.jpf.jvm.JVM;
 import gov.nasa.jpf.report.Publisher;
 import gov.nasa.jpf.search.Search;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.ThreadInfo;
+import gov.nasa.jpf.vm.VM;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
@@ -38,7 +40,7 @@ import java.lang.management.MemoryUsage;
   @JPFOption(type = "Long", key = "budget.max_time", defaultValue= "-1", comment = "stop search after specified duration [msec]"),
   @JPFOption(type = "Long", key = "budget.max_heap", defaultValue = "-1", comment="stop search when VM heapsize reaches specified limit"),
   @JPFOption(type = "Int", key = "budget.max_depth", defaultValue = "-1", comment = "stop search at specified search depth"),
-  @JPFOption(type = "Long", key = "budget.max_insn", defaultValue = "-1", comment = "stop search after specified number of intstructions"),
+  @JPFOption(type = "long", key = "budget.max_insn", defaultValue = "-1", comment = "stop search after specified number of intstructions"),
   @JPFOption(type = "Int", key = "budget.max_state", defaultValue = "-1", comment = "stop search when reaching specified number of new states"),
   @JPFOption(type = "Int", key = "budget.max_new_states", defaultValue = "-1", comment="stop search ater specified number of non-replayed new states")
 })
@@ -52,17 +54,17 @@ public class BudgetChecker extends ListenerAdapter {
   long mStart;
   MemoryMXBean mxb;
   
-  JVM vm;
+  VM vm;
   Search search;
   long insnCount;
 
   //--- the budget thresholds
   long maxTime;
-  long maxState;
-  long maxDepth;
-  long maxInsn;
   long maxHeap;
   
+  int maxDepth;
+  long maxInsn;
+  int maxState;
   int maxNewStates;
   
   int newStates;
@@ -71,13 +73,14 @@ public class BudgetChecker extends ListenerAdapter {
   String message;
   
   public BudgetChecker (Config conf, JPF jpf) {
-    maxTime = conf.getDuration("budget.max_time", -1);
-    maxHeap = conf.getMemorySize("budget.max_heap", -1);
-    maxDepth = conf.getLong("budget.max_depth", -1);
-    maxInsn = conf.getLong("budget.max_insn", -1);
-    maxState = conf.getLong("budget.max_state", -1);
     
-    maxNewStates = conf.getInt("budget.max_new_states", -1);
+    //--- get the configured budget limits (0 means not set)
+    maxTime = conf.getDuration("budget.max_time", 0);
+    maxHeap = conf.getMemorySize("budget.max_heap", 0);
+    maxDepth = conf.getInt("budget.max_depth", 0);
+    maxInsn = conf.getLong("budget.max_insn", 0);
+    maxState = conf.getInt("budget.max_state", 0);
+    maxNewStates = conf.getInt("budget.max_new_states", 0);
     
     tStart = System.currentTimeMillis();
     
@@ -153,13 +156,16 @@ public class BudgetChecker extends ListenerAdapter {
   }
   
   public boolean newStatesExceeded(){
-    if (newStates > maxNewStates) {
-      message = "max new state count exceeded: "  + maxNewStates;
-      return true;
+    if (maxNewStates > 0){
+      if (newStates > maxNewStates) {
+        message = "max new state count exceeded: " + maxNewStates;
+        return true;
+      }
     }
     return false;
   }
   
+  @Override
   public void stateAdvanced (Search search) {    
     if (timeExceeded() || heapExceeded()) {
       search.notifySearchConstraintHit(message);
@@ -177,13 +183,14 @@ public class BudgetChecker extends ListenerAdapter {
     }
   }
       
-  public void instructionExecuted (JVM vm) {
+  @Override
+  public void instructionExecuted (VM vm, ThreadInfo ti, Instruction nextInsn, Instruction executedInsn) {
     if ((insnCount++ % CHECK_INTERVAL) == CHECK_INTERVAL1) {
 
       if (timeExceeded() || heapExceeded() || insnExceeded()) {
         search.notifySearchConstraintHit(message);
 
-        vm.getCurrentThread().breakTransition();
+        vm.getCurrentThread().breakTransition("budgetConstraint");
         search.terminate();
       }    
     }

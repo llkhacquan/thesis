@@ -21,12 +21,12 @@ package gov.nasa.jpf.listener;
 import gov.nasa.jpf.Config;
 import gov.nasa.jpf.JPF;
 import gov.nasa.jpf.ListenerAdapter;
-import gov.nasa.jpf.jvm.JVM;
-import gov.nasa.jpf.jvm.ThreadInfo;
-import gov.nasa.jpf.jvm.bytecode.Instruction;
-import gov.nasa.jpf.jvm.bytecode.InvokeInstruction;
+import gov.nasa.jpf.jvm.bytecode.JVMInvokeInstruction;
 import gov.nasa.jpf.search.Search;
 import gov.nasa.jpf.util.StringSetMatcher;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.VM;
+import gov.nasa.jpf.vm.ThreadInfo;
 
 /**
  * tool to save traces upon various conditions like
@@ -64,7 +64,7 @@ public class TraceStorer extends ListenerAdapter {
   boolean verbose;
   
   Search search;
-  JVM vm;
+  VM vm;
   
   public TraceStorer (Config config, JPF jpf){
     
@@ -93,6 +93,7 @@ public class TraceStorer extends ListenerAdapter {
     vm.storeTrace(fname, reason, verbose); // <2do> maybe some comment would be in order
   }
   
+  @Override
   public void propertyViolated (Search search){
     // Ok, this is unconditional
     storeTrace("violated property: " + search.getLastError().getDetails());
@@ -100,6 +101,7 @@ public class TraceStorer extends ListenerAdapter {
     // no need to terminate (and we don't want to interfere with search.multiple_errors)
   }
  
+  @Override
   public void stateAdvanced (Search search){
     if (search.getDepth() == storeDepth){
       storeTrace("search depth reached: " + storeDepth);
@@ -107,43 +109,44 @@ public class TraceStorer extends ListenerAdapter {
     }
   }
   
+  @Override
   public void searchConstraintHit (Search search){
     if (storeOnConstraintHit){
       storeTrace("search constraint hit: " + search.getLastSearchConstraint());      
     }
   }
   
-  public void instructionExecuted (JVM vm){
+  @Override
+  public void instructionExecuted (VM vm, ThreadInfo ti, Instruction nextInsn, Instruction executedInsn){
     if (storeCalls != null){
-      Instruction insn = vm.getLastInstruction();
-      if (insn instanceof InvokeInstruction) {
-        InvokeInstruction iinsn = (InvokeInstruction)insn;
+      if (executedInsn instanceof JVMInvokeInstruction) {
+        JVMInvokeInstruction iinsn = (JVMInvokeInstruction)executedInsn;
         String clsName = iinsn.getInvokedMethodClassName();
         String mthName = iinsn.getInvokedMethodName();
         String mn = clsName + '.' + mthName;
         
         if (storeCalls.matchesAny(mn)){
           storeTrace("call: " + mn);
-          checkVMTermination();
+          checkVMTermination(ti);
         }
       }
     }
   }
   
-  public void threadStarted(JVM vm) {
+  @Override
+  public void threadStarted(VM vm, ThreadInfo ti) {
     if (storeThreads != null){
-      ThreadInfo ti = vm.getLastThreadInfo();
       String tname = ti.getName();
       if (storeThreads.matchesAny( tname)){
         storeTrace("thread started: " + tname);
-        checkVMTermination();
+        checkVMTermination(ti);
       }
     } 
   }
 
-  boolean checkVMTermination() {
+  boolean checkVMTermination(ThreadInfo ti) {
     if (terminateOnStore){
-      vm.getLastThreadInfo().breakTransition();
+      ti.breakTransition("storeTraceTermination");
       search.terminate();
       return true;
     }

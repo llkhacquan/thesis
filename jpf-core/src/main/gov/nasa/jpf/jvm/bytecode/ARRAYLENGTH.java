@@ -18,37 +18,65 @@
 //
 package gov.nasa.jpf.jvm.bytecode;
 
-import gov.nasa.jpf.jvm.ElementInfo;
-import gov.nasa.jpf.jvm.KernelState;
-import gov.nasa.jpf.jvm.SystemState;
-import gov.nasa.jpf.jvm.ThreadInfo;
+import gov.nasa.jpf.vm.ElementInfo;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.MJIEnv;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.ThreadInfo;
 
 
 /**
  * Get length of array 
  * ..., arrayref => ..., length
  */
-public class ARRAYLENGTH extends Instruction {
-  
-  public Instruction execute (SystemState ss, KernelState ks, ThreadInfo th) {
-    int objref = th.pop();
+public class ARRAYLENGTH extends Instruction implements JVMInstruction {
+    
+  protected int arrayRef;
 
-    if (objref == -1){
-      return th.createAndThrowException("java.lang.NullPointerException",
+  /**
+   * only makes sense from an executeInstruction() or instructionExecuted() listener,
+   * it is undefined outside of insn exec notifications
+   */
+  public int getArrayRef (ThreadInfo ti){
+    if (ti.isPreExec()){
+      return peekArrayRef(ti);
+    } else {
+      return arrayRef;
+    }
+  }
+
+  public ElementInfo peekArrayElementInfo (ThreadInfo ti){
+    int aref = getArrayRef(ti);
+    return ti.getElementInfo(aref);
+  }
+  
+  public Instruction execute (ThreadInfo ti) {
+    StackFrame frame = ti.getModifiableTopFrame();
+
+    arrayRef = frame.pop();
+
+    if (arrayRef == MJIEnv.NULL){
+      return ti.createAndThrowException("java.lang.NullPointerException",
                                         "array length of null object");
     }
 
-    ElementInfo ei = ks.heap.get(objref);
-    th.push(ei.arrayLength(), false);
+    ElementInfo ei = ti.getElementInfo(arrayRef);
+    frame.push(ei.arrayLength(), false);
 
-    return getNext(th);
+    return getNext(ti);
   }
-
+  
+  @Override
   public int getByteCode () {
     return 0xBE;
   }
   
-  public void accept(InstructionVisitor insVisitor) {
+  @Override
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
+  }
+
+  protected int peekArrayRef (ThreadInfo ti) {
+    return ti.getTopFrame().peek();
   }
 }

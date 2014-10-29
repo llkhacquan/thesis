@@ -21,19 +21,20 @@ package gov.nasa.jpf.test.mc.basic;
 
 
 import gov.nasa.jpf.ListenerAdapter;
-import gov.nasa.jpf.jvm.ChoiceGenerator;
-import gov.nasa.jpf.jvm.FieldInfo;
-import gov.nasa.jpf.jvm.JVM;
-import gov.nasa.jpf.jvm.SystemState;
-import gov.nasa.jpf.jvm.ThreadInfo;
-import gov.nasa.jpf.jvm.Verify;
 import gov.nasa.jpf.jvm.bytecode.EXECUTENATIVE;
 import gov.nasa.jpf.jvm.bytecode.GETFIELD;
-import gov.nasa.jpf.jvm.bytecode.Instruction;
-import gov.nasa.jpf.jvm.choice.IntChoiceFromSet;
-import gov.nasa.jpf.jvm.choice.IntIntervalGenerator;
 import gov.nasa.jpf.search.Search;
 import gov.nasa.jpf.util.test.TestJPF;
+import gov.nasa.jpf.vm.ChoiceGenerator;
+import gov.nasa.jpf.vm.FieldInfo;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.VM;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.SystemState;
+import gov.nasa.jpf.vm.ThreadInfo;
+import gov.nasa.jpf.vm.Verify;
+import gov.nasa.jpf.vm.choice.IntChoiceFromSet;
+import gov.nasa.jpf.vm.choice.IntIntervalGenerator;
 
 import org.junit.Test;
 
@@ -45,13 +46,12 @@ public class CascadedCGTest extends TestJPF {
   public static class IntChoiceCascader extends ListenerAdapter {
     static int result;
 
-    public void instructionExecuted(JVM vm) {
-      Instruction insn = vm.getLastInstruction();
-      ThreadInfo ti = vm.getLastThreadInfo();
+    @Override
+    public void instructionExecuted(VM vm, ThreadInfo ti, Instruction nextInsn, Instruction executedInsn) {
       SystemState ss = vm.getSystemState();
 
-      if (insn instanceof EXECUTENATIVE) { // break on native method exec
-        EXECUTENATIVE exec = (EXECUTENATIVE) insn;
+      if (executedInsn instanceof EXECUTENATIVE) { // break on native method exec
+        EXECUTENATIVE exec = (EXECUTENATIVE) executedInsn;
 
         if (exec.getExecutedMethodName().equals("getInt")){// this insn did create a CG
           if (!ti.isFirstStepInsn()){
@@ -118,13 +118,12 @@ public class CascadedCGTest extends TestJPF {
 
   public static class FieldAccessCascader extends ListenerAdapter {
 
-    public void instructionExecuted(JVM vm) {
-      Instruction insn = vm.getLastInstruction();
-      ThreadInfo ti = vm.getLastThreadInfo();
+    @Override
+    public void instructionExecuted(VM vm, ThreadInfo ti, Instruction nextInsn, Instruction executedInsn) {
       SystemState ss = vm.getSystemState();
 
-      if (insn instanceof GETFIELD){
-        GETFIELD getInsn = (GETFIELD) insn;
+      if (executedInsn instanceof GETFIELD){
+        GETFIELD getInsn = (GETFIELD) executedInsn;
         FieldInfo fi = getInsn.getFieldInfo();
         if (fi.getName().equals("mySharedField")){
 
@@ -138,20 +137,24 @@ public class CascadedCGTest extends TestJPF {
             // we can reexecute
             if (!ti.willReExecuteInstruction()){
               // restore old operand stack contents
-              ti.pop();
-              ti.push(getInsn.getLastThis());
+              StackFrame frame = ti.getModifiableTopFrame();
+
+              frame.pop();
+              frame.pushRef( getInsn.getLastThis());
             }
 
             cg = new IntChoiceFromSet("fieldReplace", 42, 43);
             ss.setNextChoiceGenerator(cg);
             ti.reExecuteInstruction();
 
-            System.out.println("# listener registered: " + cg);
+            System.out.println("# listener registered CG: " + cg);
 
           } else {
+            StackFrame frame = ti.getModifiableTopFrame();
+
             int v = cg.getNextChoice();
-            int n = ti.pop();
-            ti.push(v);
+            int n = frame.pop();
+            frame.push(v);
 
             System.out.println("# listener replacing " + n + " with " + v);
           }
@@ -160,23 +163,34 @@ public class CascadedCGTest extends TestJPF {
     }
 
     //--- those are just for debugging purposes
+    @Override
     public void stateBacktracked(Search search) {
       System.out.println("#------ [" + search.getDepth() + "] backtrack: " + search.getStateId());
     }
+    
+    @Override
     public void stateAdvanced(Search search){
       System.out.println("#------ " + search.getStateId() + " isNew: " + search.isNewState() + ", isEnd: " + search.isEndState());
     }
-    public void threadScheduled(JVM vm){
-      System.out.println("# running thread: " + vm.getLastThreadInfo());
+    
+    @Override
+    public void threadScheduled(VM vm, ThreadInfo ti){
+      System.out.println("# running thread: " + ti);
     }
-    public void threadTerminated(JVM vm){
-      System.out.println("# terminated thread: " + vm.getLastThreadInfo());
+    
+    @Override
+    public void threadTerminated(VM vm, ThreadInfo ti){
+      System.out.println("# terminated thread: " + ti);
     }
-    public void threadStarted(JVM vm){
-      System.out.println("# started thread: " + vm.getLastThreadInfo());
+    
+    @Override
+    public void threadStarted(VM vm, ThreadInfo ti){
+      System.out.println("# started thread: " + ti);
     }
-    public void choiceGeneratorAdvanced (JVM vm) {
-      System.out.println("# choice: " + vm.getLastChoiceGenerator());
+    
+    @Override
+    public void choiceGeneratorAdvanced (VM vm, ChoiceGenerator<?> currentCG) {
+      System.out.println("# choice: " + currentCG);
     }
   }
 

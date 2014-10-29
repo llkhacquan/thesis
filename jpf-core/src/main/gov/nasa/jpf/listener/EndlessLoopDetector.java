@@ -20,8 +20,8 @@
 package gov.nasa.jpf.listener;
 
 import gov.nasa.jpf.Config;
-import gov.nasa.jpf.jvm.JVM;
 import gov.nasa.jpf.search.Search;
+import gov.nasa.jpf.vm.VM;
 
 /**
  * little listener that tries to detect endless while() loops by counting
@@ -39,16 +39,19 @@ public class EndlessLoopDetector extends IdleFilter {
     action = Action.BREAK;
   }
 
+  @Override
   public void stateAdvanced(Search search) {
     if (brokeTransition && search.isVisitedState()) {
       foundEndlessLoop = true;
     }
   }
 
-  public boolean check(Search search, JVM vm) {
+  @Override
+  public boolean check(Search search, VM vm) {
     return !foundEndlessLoop;
   }
 
+  @Override
   public void reset () {
     foundEndlessLoop = false;
   }

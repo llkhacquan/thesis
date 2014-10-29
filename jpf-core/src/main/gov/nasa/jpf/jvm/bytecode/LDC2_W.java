@@ -18,16 +18,17 @@
 //
 package gov.nasa.jpf.jvm.bytecode;
 
-import gov.nasa.jpf.jvm.KernelState;
-import gov.nasa.jpf.jvm.SystemState;
-import gov.nasa.jpf.jvm.ThreadInfo;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.ThreadInfo;
 
 
 /**
  * Push long or double from runtime constant pool (wide index)
  * ... => ..., value
  */
-public class LDC2_W extends Instruction {
+public class LDC2_W extends Instruction implements JVMInstruction {
 
   public enum Type {LONG, DOUBLE};
 
@@ -44,16 +45,19 @@ public class LDC2_W extends Instruction {
     type = Type.DOUBLE;
   }
 
-  public Instruction execute (SystemState ss, KernelState ks, ThreadInfo th) {
-    th.longPush(value);
-
-    return getNext(th);
+  @Override
+  public Instruction execute (ThreadInfo ti) {
+    StackFrame frame = ti.getModifiableTopFrame();
+    
+    frame.pushLong(value);
+    return getNext(ti);
   }
 
   public int getLength() {
     return 3; // opcode, index1, index2
   }
-  
+
+  @Override
   public int getByteCode () {
     return 0x14;
   }
@@ -74,7 +78,8 @@ public class LDC2_W extends Instruction {
     return value;
   }
   
-  public void accept(InstructionVisitor insVisitor) {
+  @Override
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
   }
 }

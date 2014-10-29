@@ -3,13 +3,13 @@ package gov.nasa.jpf.listener;
 import gov.nasa.jpf.Config;
 import gov.nasa.jpf.JPF;
 import gov.nasa.jpf.ListenerAdapter;
-import gov.nasa.jpf.jvm.ChoiceGenerator;
-import gov.nasa.jpf.jvm.JVM;
-import gov.nasa.jpf.jvm.SystemState;
 import gov.nasa.jpf.report.ConsolePublisher;
 import gov.nasa.jpf.report.Publisher;
 import gov.nasa.jpf.report.PublisherExtension;
 import gov.nasa.jpf.search.Search;
+import gov.nasa.jpf.vm.ChoiceGenerator;
+import gov.nasa.jpf.vm.VM;
+import gov.nasa.jpf.vm.SystemState;
 
 import java.io.FileNotFoundException;
 import java.io.PrintWriter;
@@ -23,7 +23,7 @@ public class ChoiceTracker extends ListenerAdapter implements PublisherExtension
   enum Format { CG, CHOICE };
 
   Config config;
-  JVM vm;
+  VM vm;
   Search search;
   
   protected PrintWriter pw;
@@ -96,17 +96,13 @@ public class ChoiceTracker extends ListenerAdapter implements PublisherExtension
     }
   }
 
+  @Override
   public void propertyViolated (Search search) {
         
     if (!isReportExtension) {
 
       pw.print("// application: ");
-      pw.print(config.getTarget());
-      for (String s : config.getTargetArgs()) {
-        pw.print(s);
-        pw.print(' ');
-      }
-      pw.println();
+      pw.println( search.getVM().getSUTDescription());
 
       if (cgClasses == null) {
         pw.println("// trace over all CG classes");
@@ -154,13 +150,13 @@ public class ChoiceTracker extends ListenerAdapter implements PublisherExtension
         switch (format){
           case CHOICE:
             line = choice.toString();
-            if (line.startsWith("gov.nasa.jpf.jvm.")){
+            if (line.startsWith("gov.nasa.jpf.vm.")){
               line = line.substring(17);
             }
             break;
           case CG:
             line = cg.toString();
-            if (line.startsWith("gov.nasa.jpf.jvm.choice.")){
+            if (line.startsWith("gov.nasa.jpf.vm.choice.")){
               line = line.substring(24);
             }
             break;
@@ -187,6 +183,7 @@ public class ChoiceTracker extends ListenerAdapter implements PublisherExtension
 
   //--- the PublisherExtension interface
 
+  @Override
   public void publishPropertyViolation (Publisher publisher) {
     pw = publisher.getOut();
     publisher.publishTopicStart("choice trace " + publisher.getLastErrorId());

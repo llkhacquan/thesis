@@ -18,29 +18,34 @@
 //
 package gov.nasa.jpf.jvm.bytecode;
 
-import gov.nasa.jpf.jvm.KernelState;
-import gov.nasa.jpf.jvm.SystemState;
-import gov.nasa.jpf.jvm.ThreadInfo;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.ThreadInfo;
 
 
 /**
  * Push long constant
  * ... => ..., <l>
  */
-public class LCONST extends Instruction {
-  private long value;
+public class LCONST extends Instruction implements JVMInstruction {
+  protected long value;
 
 
   public LCONST(long value){
     this.value = value;
   }
 
-  public Instruction execute (SystemState ss, KernelState ks, ThreadInfo th) {
-    th.longPush(value);
-
-    return getNext(th);
+  @Override
+  public Instruction execute (ThreadInfo ti) {
+    StackFrame frame = ti.getModifiableTopFrame();
+    
+    frame.pushLong(value);
+    
+    return getNext(ti);
   }
 
+  @Override
   public int getByteCode () {
     if (value == 0) {
       return 0x09;
@@ -49,6 +54,7 @@ public class LCONST extends Instruction {
     }
   }
   
+  @Override
   public String getMnemonic () {
     if (value == 0) {
       return "lconst_0";
@@ -57,12 +63,13 @@ public class LCONST extends Instruction {
     }    
   }
   
-  public void accept(InstructionVisitor insVisitor) {
+  @Override
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
   }
 
   public long getValue() {
-	return value;
+	  return value;
   }
   
 }

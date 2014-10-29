@@ -19,8 +19,8 @@
 
 package gov.nasa.jpf.test.vm.threads;
 
-import gov.nasa.jpf.jvm.Verify;
 import gov.nasa.jpf.util.test.TestJPF;
+import gov.nasa.jpf.vm.Verify;
 
 import org.junit.Test;
 
@@ -143,7 +143,7 @@ public class JoinTest extends TestJPF {
 
       // poor man's join
       while (t.isAlive()){
-        Thread.currentThread().yield();
+        Thread.yield();
       }
 
       try {

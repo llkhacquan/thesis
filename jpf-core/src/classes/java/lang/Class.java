@@ -29,6 +29,7 @@ import java.lang.reflect.GenericDeclaration;
 import java.lang.reflect.Method;
 import java.lang.reflect.Type;
 import java.lang.reflect.TypeVariable;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
@@ -40,7 +41,7 @@ import sun.reflect.annotation.AnnotationType;
  * MJI model class for java.lang.Class library abstraction
  *
  * This is a JPF specific version of a system class because we can't use the real,
- * platform JVM specific version (it's native all over the place, its field
+ * platform VM specific version (it's native all over the place, its field
  * structure isn't documented, most of its methods are private, hence we can't
  * even instantiate it properly).
  *
@@ -61,11 +62,12 @@ public final class Class<T> implements Serializable, GenericDeclaration, Type, A
   
   private String name;
 
+  private ClassLoader classLoader;
+  
   /**
-   * this is the StaticArea ref of the class we refer to
-   * (so that we don't have to convert to a Java String in the peer all the time)
+   * search global id of the corresponding ClassInfo, which factors in the classloader
    */
-  private int cref;
+  private int nativeId;
 
   /**
    * to be set during <clinit> of the corresponding class
@@ -115,10 +117,11 @@ public final class Class<T> implements Serializable, GenericDeclaration, Type, A
     return new ByteArrayInputStream(byteArray);
   }
 
-  public URL getResource (String name) {
-    name = null;  // Get rid of IDE warning
-    // <2do> if we support getResourceAsStream, we need to support this as well
-    throw new UnsupportedOperationException("Class.getResource() not yet supported in JPF");
+  private native String getResolvedName (String rname);
+
+  public URL getResource (String rname) {
+    String resolvedName = getResolvedName(rname);
+    return getClassLoader().getResource(resolvedName);
   }
 
   public Package getPackage() {
@@ -206,23 +209,32 @@ public final class Class<T> implements Serializable, GenericDeclaration, Type, A
     return name.substring(idx+1);
   }
 
-  static native Class getPrimitiveClass (String clsName);
+  static native Class<?> getPrimitiveClass (String clsName);
 
    /**
     * this one is in JPF reflection land, it's 'native' for us
     */
-  public static native Class<?> forName (String clsName)
-                               throws ClassNotFoundException;
+  public static native Class<?> forName (String clsName) throws ClassNotFoundException;
 
-  public static Class<?> forName (String clsName, boolean initialize, ClassLoader loader)
-      throws ClassNotFoundException {
-    // deferred init and loaders are not supported yet
-    initialize = false;  // Get rid of IDE warnings
-    loader     = null;     
+  public static Class<?> forName (String clsName, boolean initialize, ClassLoader loader) throws ClassNotFoundException {
+    Class<?> cls;
+    if (loader == null){
+      cls = forName(clsName);
+    } else {
+      cls = loader.loadClass(clsName);
+    }
     
-    return forName(clsName);
+    if (initialize) {
+      cls.initialize0();
+    }
+    return cls;
   }
 
+  /**
+   * forces clinit without explicit field or method access
+   */
+  private native void initialize0 ();
+  
   public boolean isPrimitive () {
     return isPrimitive;
   }
@@ -242,6 +254,7 @@ public final class Class<T> implements Serializable, GenericDeclaration, Type, A
     return (T) o;
   }
   
+  @SuppressWarnings("unchecked")
   public <U> Class<? extends U> asSubclass(Class<U> clazz) {
     if (clazz.isAssignableFrom(this)) {
       return (Class<? extends U>) this;
@@ -252,7 +265,9 @@ public final class Class<T> implements Serializable, GenericDeclaration, Type, A
 
   native public boolean desiredAssertionStatus ();
 
-  public native ClassLoader getClassLoader();
+  public ClassLoader getClassLoader() {
+    return classLoader;
+  }
 
   native ConstantPool getConstantPool();
 

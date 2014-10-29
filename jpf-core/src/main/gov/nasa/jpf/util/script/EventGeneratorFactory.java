@@ -2,10 +2,10 @@ package gov.nasa.jpf.util.script;
 
 import gov.nasa.jpf.Config;
 import gov.nasa.jpf.ListenerAdapter;
-import gov.nasa.jpf.jvm.ChoiceGenerator;
-import gov.nasa.jpf.jvm.SystemState;
 import gov.nasa.jpf.search.Search;
 import gov.nasa.jpf.util.DynamicObjectArray;
+import gov.nasa.jpf.vm.ChoiceGenerator;
+import gov.nasa.jpf.vm.SystemState;
 
 import java.io.PrintWriter;
 import java.util.ArrayList;
@@ -245,10 +245,12 @@ public abstract class EventGeneratorFactory extends ListenerAdapter
   /* we need this after a backtrack and restore to determine the next CG to return
    */
 
+  @Override
   public void searchStarted (Search search) {
     cur = 0;
   }
 
+  @Override
   public void stateAdvanced (Search search) {
     int idx = search.getStateId();
 
@@ -258,12 +260,14 @@ public abstract class EventGeneratorFactory extends ListenerAdapter
     }
   }
 
+  @Override
   public void stateBacktracked (Search search) {
     Memento m = states.get(search.getStateId());
     m.restore(this);
     // nextCg will be re-computed (->getNext), so there is no need to reset
   }
 
+  @Override
   public void stateRestored (Search search) {
     Memento m = states.get(search.getStateId());
     m.restore(this);

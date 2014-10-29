@@ -19,7 +19,7 @@
 package gov.nasa.jpf.search.heuristic;
 
 import gov.nasa.jpf.Config;
-import gov.nasa.jpf.jvm.JVM;
+import gov.nasa.jpf.vm.VM;
 
 
 /**
@@ -29,13 +29,13 @@ import gov.nasa.jpf.jvm.JVM;
  */
 public class MostBlocked extends SimplePriorityHeuristic {
 
-  public MostBlocked (Config config, JVM vm) {
+  public MostBlocked (Config config, VM vm) {
     super(config,vm);
   }
 
   protected int computeHeuristicValue () {
-    int alive = vm.getAliveThreadCount();
-    int runnable = vm.getRunnableThreadCount();
+    int alive = vm.getThreadList().getMatchingCount(aliveThread);
+    int runnable = vm.getThreadList().getMatchingCount(vm.getTimedoutRunnablePredicate());
 
     // pcm - the (iSystemState based) condition was "!runnable && alive"
     // the '10000' is just a potential max thread count

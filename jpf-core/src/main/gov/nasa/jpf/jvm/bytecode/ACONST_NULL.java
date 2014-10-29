@@ -18,29 +18,35 @@
 //
 package gov.nasa.jpf.jvm.bytecode;
 
-import gov.nasa.jpf.jvm.KernelState;
-import gov.nasa.jpf.jvm.SystemState;
-import gov.nasa.jpf.jvm.ThreadInfo;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.MJIEnv;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.ThreadInfo;
 
 
 /**
  * Push null
  * ... => ..., null
  */
-public class ACONST_NULL extends Instruction {
+public class ACONST_NULL extends Instruction implements JVMInstruction {
   
-  public Instruction execute (SystemState ss, KernelState ks, ThreadInfo th) {
-    // pushes a null onto the stack
-    th.push(-1, true);
-
-    return getNext(th);
+  @Override
+  public Instruction execute (ThreadInfo ti) {
+    StackFrame frame = ti.getModifiableTopFrame();
+    
+    frame.pushRef(MJIEnv.NULL);
+    
+    return getNext(ti);
   }
 
+  @Override
   public int getByteCode () {
     return 0x01;
   }
   
-  public void accept(InstructionVisitor insVisitor) {
+  @Override
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
   }
 }

@@ -18,9 +18,10 @@
 //
 package gov.nasa.jpf.jvm.bytecode;
 
-import gov.nasa.jpf.jvm.KernelState;
-import gov.nasa.jpf.jvm.SystemState;
-import gov.nasa.jpf.jvm.ThreadInfo;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.MethodInfo;
+import gov.nasa.jpf.vm.ThreadInfo;
 
 
 /**
@@ -29,7 +30,7 @@ import gov.nasa.jpf.jvm.ThreadInfo;
  *
  * <2do> store this as code insnIndex, not as bytecode position
  */
-public class GOTO extends Instruction {
+public class GOTO extends Instruction implements JVMInstruction {
   protected int targetPosition;
   Instruction target;
 
@@ -37,7 +38,16 @@ public class GOTO extends Instruction {
     this.targetPosition = targetPosition;
   }
 
-  public Instruction execute (SystemState ss, KernelState ks, ThreadInfo th) {
+  public Instruction execute (ThreadInfo ti) {
+    if (isBackJump() && ti.maxTransitionLengthExceeded()){
+      // this is a rather simplistic attempt to terminate the search in
+      // endless loops that do not change program state.
+      // <2do> this does not handle nested loops yet
+      if (ti.breakTransition("MAX_TRANSITION_LENGTH")){
+        return this; // re-execute after giving state matching a chance to prune the search
+      }
+    }
+    
     return getTarget();
   }
 
@@ -64,7 +74,25 @@ public class GOTO extends Instruction {
     return getMnemonic() + " " + targetPosition;
   }
   
-  public void accept(InstructionVisitor insVisitor) {
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
+  }
+
+  @Override
+  public Instruction typeSafeClone(MethodInfo mi) {
+    GOTO clone = null;
+
+    try {
+      clone = (GOTO) super.clone();
+
+      // reset the method that this insn belongs to
+      clone.mi = mi;
+
+      clone.target = null;
+    } catch (CloneNotSupportedException e) {
+      e.printStackTrace();
+    }
+
+    return clone;
   }
 }

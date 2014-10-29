@@ -53,11 +53,13 @@ public interface InfixToPrefixConstants {
   /** RegularExpression Id. */
   int LSHIFT = 26;
   /** RegularExpression Id. */
-  int Const = 27;
+  int IMPLICATION = 27;
   /** RegularExpression Id. */
-  int Var = 28;
+  int Const = 28;
   /** RegularExpression Id. */
-  int Number = 29;
+  int Var = 29;
+  /** RegularExpression Id. */
+  int Number = 30;
 
   /** Lexical state. */
   int DEFAULT = 0;
@@ -91,6 +93,7 @@ public interface InfixToPrefixConstants {
     "\"^\"",
     "\"%\"",
     "\"<<\"",
+    "\"=>\"",
     "<Const>",
     "<Var>",
     "<Number>",

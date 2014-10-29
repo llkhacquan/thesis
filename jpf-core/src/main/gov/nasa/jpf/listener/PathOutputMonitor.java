@@ -21,12 +21,12 @@ package gov.nasa.jpf.listener;
 import gov.nasa.jpf.Config;
 import gov.nasa.jpf.JPF;
 import gov.nasa.jpf.PropertyListenerAdapter;
-import gov.nasa.jpf.jvm.JVM;
-import gov.nasa.jpf.jvm.Path;
-import gov.nasa.jpf.jvm.Transition;
 import gov.nasa.jpf.report.ConsolePublisher;
 import gov.nasa.jpf.report.Publisher;
 import gov.nasa.jpf.search.Search;
+import gov.nasa.jpf.vm.VM;
+import gov.nasa.jpf.vm.Path;
+import gov.nasa.jpf.vm.Transition;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -119,7 +119,7 @@ public class PathOutputMonitor extends PropertyListenerAdapter {
   }
 
   //---- our instance data
-  JVM vm;
+  VM vm;
   
   //--- this is where we store the outputs (line-wise)
   // <2do> not very space efficient
@@ -285,7 +285,8 @@ public class PathOutputMonitor extends PropertyListenerAdapter {
   
   //----------- the listener interface
   
-  public boolean check(Search search, JVM vm) {
+  @Override
+  public boolean check(Search search, VM vm) {
     return (errorMsg == null);
   }
 
@@ -317,13 +318,14 @@ public class PathOutputMonitor extends PropertyListenerAdapter {
     return s;
   }
   
+  @Override
   public void reset () {
     errorMsg = null;
     violatedSpecs.clear();
     offendingOutput = null;
   }
 
-  
+  @Override
   public void stateAdvanced(Search search) {
     if (search.isEndState()) {
       
@@ -367,6 +369,7 @@ public class PathOutputMonitor extends PropertyListenerAdapter {
     }
   }
   
+  @Override
   public void searchFinished (Search search) {
     if (allSpecs != null && !matchesAll(allSpecs, pathOutputs)) {
       log.warning("pom.all violated");
@@ -374,6 +377,7 @@ public class PathOutputMonitor extends PropertyListenerAdapter {
     }
   }
   
+  @Override
   public void publishFinished (Publisher publisher) {
     
     if (printOutput) {

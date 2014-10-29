@@ -18,81 +18,95 @@
 //
 package gov.nasa.jpf.jvm.bytecode;
 
-import gov.nasa.jpf.JPFException;
-import gov.nasa.jpf.jvm.ClassInfo;
-import gov.nasa.jpf.jvm.FieldInfo;
-import gov.nasa.jpf.jvm.KernelState;
-import gov.nasa.jpf.jvm.StaticElementInfo;
-import gov.nasa.jpf.jvm.SystemState;
-import gov.nasa.jpf.jvm.ThreadInfo;
+import gov.nasa.jpf.vm.ClassInfo;
+import gov.nasa.jpf.vm.ElementInfo;
+import gov.nasa.jpf.vm.FieldInfo;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.LoadOnJPFRequired;
+import gov.nasa.jpf.vm.Scheduler;
+import gov.nasa.jpf.vm.SharednessPolicy;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.ThreadInfo;
+import gov.nasa.jpf.vm.bytecode.ReadInstruction;
 
 
 /**
  * Get static fieldInfo from class
  * ..., => ..., value 
  */
-public class GETSTATIC extends StaticFieldInstruction {
+public class GETSTATIC extends JVMStaticFieldInstruction  implements ReadInstruction {
 
   public GETSTATIC(String fieldName, String clsDescriptor, String fieldDescriptor){
     super(fieldName, clsDescriptor, fieldDescriptor);
   }
 
-  public Instruction execute (SystemState ss, KernelState ks, ThreadInfo ti) {
+  @Override
+  public Instruction execute (ThreadInfo ti) {
+    FieldInfo fieldInfo;
 
-    ClassInfo clsInfo = getClassInfo();
-    if (clsInfo == null){
-      return ti.createAndThrowException("java.lang.NoClassDefFoundError", className);
-    }
-
-    FieldInfo fieldInfo = getFieldInfo();
-    if (fieldInfo == null) {
-      return ti.createAndThrowException("java.lang.NoSuchFieldError",
-          (className + '.' + fname));
-    }
-
-    // this can be actually different (can be a base)
-    clsInfo = fieldInfo.getClassInfo();
-
-    if (!mi.isClinit(clsInfo) && requiresClinitExecution(ti, clsInfo)) {
+    //--- check if this causes a class load by a user defined classloader
+    try {
+      fieldInfo = getFieldInfo();
+    } catch (LoadOnJPFRequired lre) {
       return ti.getPC();
     }
-
-    StaticElementInfo ei = clsInfo.getStaticElementInfo();
-
-    if (ei == null){
-      throw new JPFException("attempt to access field: " + fname + " of uninitialized class: " + clsInfo.getName());
+    
+    if (fieldInfo == null) {
+      return ti.createAndThrowException("java.lang.NoSuchFieldError",
+              (className + '.' + fname));
     }
 
-    if (isNewPorFieldBoundary(ti)) {
-      if (createAndSetFieldCG(ss, ei, ti)) {
-        return this;
+    //--- check if this has to trigger class initialization
+    ClassInfo ciField = fieldInfo.getClassInfo();
+    if (!mi.isClinit(ciField) && ciField.pushRequiredClinits(ti)) {
+      // note - this returns the next insn in the topmost clinit that just got pushed
+      return ti.getPC();
+    }
+    ElementInfo eiFieldOwner = ciField.getStaticElementInfo();
+
+    //--- check if this breaks the transition
+    Scheduler scheduler = ti.getScheduler();
+    if (scheduler.canHaveSharedClassCG( ti, this, eiFieldOwner, fieldInfo)){
+      eiFieldOwner = scheduler.updateClassSharedness(ti, eiFieldOwner, fieldInfo);
+      if (scheduler.setsSharedClassCG( ti, this, eiFieldOwner, fieldInfo)){
+        return this; // re-execute
       }
     }
-   
-    Object attr = ei.getFieldAttr(fieldInfo);
+        
+    Object fieldAttr = eiFieldOwner.getFieldAttr(fieldInfo);
+    StackFrame frame = ti.getModifiableTopFrame();
 
     if (size == 1) {
-      int ival = ei.get1SlotField(fieldInfo);
+      int ival = eiFieldOwner.get1SlotField(fieldInfo);
       lastValue = ival;
 
-      ti.push(ival, fieldInfo.isReference());
+      if (fieldInfo.isReference()) {
+        frame.pushRef(ival);
+      } else {
+        frame.push(ival);
+      }
       
-      if (attr != null) {
-        ti.setOperandAttrNoClone(attr);
+      if (fieldAttr != null) {
+        frame.setOperandAttr(fieldAttr);
       }
 
     } else {
-      long lval = ei.get2SlotField(fieldInfo);
+      long lval = eiFieldOwner.get2SlotField(fieldInfo);
       lastValue = lval;
       
-      ti.longPush(lval);
+      frame.pushLong(lval);
       
-      if (attr != null) {
-        ti.setLongOperandAttrNoClone(attr);
+      if (fieldAttr != null) {
+        frame.setLongOperandAttr(fieldAttr);
       }
     }
         
     return getNext(ti);
+  }
+  
+  @Override
+  public boolean isMonitorEnterPrologue(){
+    return GetHelper.isMonitorEnterPrologue(mi, insnIndex);
   }
   
   public int getLength() {
@@ -107,7 +121,7 @@ public class GETSTATIC extends StaticFieldInstruction {
     return true;
   }
   
-  public void accept(InstructionVisitor insVisitor) {
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
   }
 }

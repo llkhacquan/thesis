@@ -18,95 +18,113 @@
 //
 package gov.nasa.jpf.jvm.bytecode;
 
-import gov.nasa.jpf.jvm.ElementInfo;
-import gov.nasa.jpf.jvm.FieldInfo;
-import gov.nasa.jpf.jvm.KernelState;
-import gov.nasa.jpf.jvm.SystemState;
-import gov.nasa.jpf.jvm.ThreadInfo;
-
+import gov.nasa.jpf.util.InstructionState;
+import gov.nasa.jpf.vm.ChoiceGenerator;
+import gov.nasa.jpf.vm.ElementInfo;
+import gov.nasa.jpf.vm.FieldInfo;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.MJIEnv;
+import gov.nasa.jpf.vm.Scheduler;
+import gov.nasa.jpf.vm.SharednessPolicy;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.ThreadInfo;
+import gov.nasa.jpf.vm.bytecode.WriteInstruction;
+import gov.nasa.jpf.vm.choice.ExposureCG;
 
 /**
  * Set field in object
  * ..., objectref, value => ...
- *
- * Hmm, this is at the upper level of complexity because of the unified CG handling
  */
-public class PUTFIELD extends InstanceFieldInstruction implements StoreInstruction {
-
-  public PUTFIELD() {}
+public class PUTFIELD extends JVMInstanceFieldInstruction implements WriteInstruction {
 
   public PUTFIELD(String fieldName, String clsDescriptor, String fieldDescriptor){
     super(fieldName, clsDescriptor, fieldDescriptor);
+  }  
+
+  @Override
+  public int getObjectSlot (StackFrame frame){
+    return frame.getTopPos() - size;
   }
 
   /**
-   * only meaningful in instructionExecuted notification
+   * where do we get the value from?
+   * NOTE: only makes sense in a executeInstruction() context 
    */
-
-  public Instruction execute (SystemState ss, KernelState ks, ThreadInfo ti) {
-
-    FieldInfo fi = getFieldInfo();
-    if (fi == null) {
-      // Hmm, we should do the NPE check first, but need the fi to get the object ref
-      return ti.createAndThrowException("java.lang.NoSuchFieldError", fname);
-    }
-
-    int storageSize = fi.getStorageSize();
-    int objRef = ti.peek( (storageSize == 1) ? 1 : 2);
-    lastThis = objRef;
-
-    // if this produces an NPE, force the error w/o further ado
-    if (objRef == -1) {
-      return ti.createAndThrowException("java.lang.NullPointerException",
-                                 "referencing field '" + fname + "' on null object");
-    }
-    ElementInfo ei = ti.getElementInfo(objRef);
-
-    // check if this breaks the current transition
-    if (isNewPorFieldBoundary(ti, fi, objRef)) {
-      if (createAndSetFieldCG(ss, ei, ti)) {
-        return this;
-      }
-    }
-
-    // start the real execution by getting the value from the operand stack
-    Object attr = null; // attr handling has to be consistent with PUTSTATIC
-
-    if (storageSize == 1){
-      attr = ti.getOperandAttr();
-
-      int ival = ti.pop();
-      lastValue = ival;
-
-      if (fi.isReference()) {
-        ei.setReferenceField(fi, ival);
-      } else {
-        ei.set1SlotField(fi, ival);
-      }
-
-    } else {
-        attr = ti.getLongOperandAttr();
-
-        long lval = ti.longPop();
-        lastValue = lval;
-
-        ei.set2SlotField(fi, lval);
-    }
-
-    // this is kind of policy, but it seems more natural to overwrite
-    // (if we want to accumulate, this has to happen in ElementInfo/Fields
-    ei.setFieldAttrNoClone(fi, attr);  // <2do> what if the value is the same but not the attr?
-
-    ti.pop(); // we already have the objRef
-    lastThis = objRef;
-
-    return getNext(ti);
+  public int getValueSlot (StackFrame frame){
+    return frame.getTopPos();
   }
 
+  
+  /**
+   * where do we write to?
+   * NOTE: this should only be used from a executeInstruction()/instructionExecuted() context
+   */
+  public ElementInfo getElementInfo(ThreadInfo ti){
+    if (isCompleted(ti)){
+      return ti.getElementInfo(lastThis);
+    } else {
+      return peekElementInfo(ti); // get it from the stack
+    }
+  }
+
+  @Override
+  public Instruction execute (ThreadInfo ti) {
+    StackFrame frame = ti.getModifiableTopFrame();
+    int objRef = frame.peek( size);
+    lastThis = objRef;
+    
+    if (objRef == MJIEnv.NULL) {
+      return ti.createAndThrowException("java.lang.NullPointerException", "referencing field '" + fname + "' on null object");
+    }
+
+    ElementInfo eiFieldOwner = ti.getModifiableElementInfo(objRef);
+    FieldInfo fieldInfo = getFieldInfo();
+    if (fieldInfo == null) {
+      return ti.createAndThrowException("java.lang.NoSuchFieldError", "no field " + fname + " in " + eiFieldOwner);
+    }
+    
+    //--- check scheduling point due to shared object access
+    Scheduler scheduler = ti.getScheduler();
+    if (scheduler.canHaveSharedObjectCG(ti,this,eiFieldOwner,fieldInfo)){
+      eiFieldOwner = scheduler.updateObjectSharedness( ti, eiFieldOwner, fi);
+      if (scheduler.setsSharedObjectCG( ti, this, eiFieldOwner, fieldInfo)){
+        return this; // re-execute
+      }
+    }
+    
+    // this might be re-executed
+    if (frame.getAndResetFrameAttr(InstructionState.class) == null){
+      lastValue = PutHelper.setField(ti, frame, eiFieldOwner, fieldInfo);
+    }
+    
+    //--- check scheduling point due to exposure through shared object
+    if (isReferenceField()){
+      int refValue = frame.peek();
+      if (refValue != MJIEnv.NULL){
+        ElementInfo eiExposed = ti.getElementInfo(refValue);
+        if (scheduler.setsSharedObjectExposureCG(ti, this, eiFieldOwner, fi, eiExposed)){
+          frame.addFrameAttr( InstructionState.getProcessedState());
+          return this; // re-execute AFTER assignment
+        }
+      }
+    }
+    
+    popOperands(frame);      
+    return getNext();
+  }
+
+  protected void popOperands (StackFrame frame){
+    if (size == 1){
+      frame.pop(2); // .. objref, val => ..
+    } else {
+      frame.pop(3); // .. objref, highVal,lowVal => ..    
+    }
+  }
+    
   public ElementInfo peekElementInfo (ThreadInfo ti) {
     FieldInfo fi = getFieldInfo();
     int storageSize = fi.getStorageSize();
-    int objRef = ti.peek( (storageSize == 1) ? 1 : 2);
+    int objRef = ti.getTopFrame().peek( (storageSize == 1) ? 1 : 2);
     ElementInfo ei = ti.getElementInfo( objRef);
 
     return ei;
@@ -125,7 +143,7 @@ public class PUTFIELD extends InstanceFieldInstruction implements StoreInstructi
     return false;
   }
 
-  public void accept(InstructionVisitor insVisitor) {
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
   }
 }

@@ -21,10 +21,11 @@ package gov.nasa.jpf.test.basic;
 import gov.nasa.jpf.Config;
 import gov.nasa.jpf.JPF;
 import gov.nasa.jpf.ListenerAdapter;
-import gov.nasa.jpf.jvm.JVM;
-import gov.nasa.jpf.jvm.Verify;
 import gov.nasa.jpf.search.Search;
 import gov.nasa.jpf.util.test.TestJPF;
+import gov.nasa.jpf.vm.SingleProcessVM;
+import gov.nasa.jpf.vm.VM;
+import gov.nasa.jpf.vm.Verify;
 
 import org.junit.Test;
 
@@ -38,7 +39,7 @@ public class ListenerTest extends TestJPF {
     }
   }
   
-  public static class TestVM extends JVM {
+  public static class TestVM extends SingleProcessVM {
     public TestVM (JPF jpf, Config config){
       super(jpf, config);
       

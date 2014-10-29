@@ -21,12 +21,6 @@ package gov.nasa.jpf.listener;
 import gov.nasa.jpf.Config;
 import gov.nasa.jpf.JPF;
 import gov.nasa.jpf.PropertyListenerAdapter;
-import gov.nasa.jpf.jvm.ClassInfo;
-import gov.nasa.jpf.jvm.ElementInfo;
-import gov.nasa.jpf.jvm.Heap;
-import gov.nasa.jpf.jvm.JVM;
-import gov.nasa.jpf.jvm.MethodInfo;
-import gov.nasa.jpf.jvm.ThreadInfo;
 import gov.nasa.jpf.report.ConsolePublisher;
 import gov.nasa.jpf.report.Publisher;
 import gov.nasa.jpf.search.Search;
@@ -34,6 +28,12 @@ import gov.nasa.jpf.util.DynamicObjectArray;
 import gov.nasa.jpf.util.Misc;
 import gov.nasa.jpf.util.SourceRef;
 import gov.nasa.jpf.util.StringSetMatcher;
+import gov.nasa.jpf.vm.ClassInfo;
+import gov.nasa.jpf.vm.ElementInfo;
+import gov.nasa.jpf.vm.Heap;
+import gov.nasa.jpf.vm.VM;
+import gov.nasa.jpf.vm.MethodInfo;
+import gov.nasa.jpf.vm.ThreadInfo;
 
 import java.io.PrintWriter;
 import java.util.ArrayList;
@@ -183,7 +183,8 @@ public class HeapTracker extends PropertyListenerAdapter {
   /**
    * return 'false' if property is violated
    */
-  public boolean check (Search search, JVM vm) {
+  @Override
+  public boolean check (Search search, VM vm) {
     if (throwOutOfMemory) {
       // in this case we don't want to stop the program, but see if it
       // behaves gracefully - don't report a property violation
@@ -205,6 +206,7 @@ public class HeapTracker extends PropertyListenerAdapter {
   }
 
   /******************************************* SearchListener interface *****/
+  @Override
   public void searchStarted(Search search) {
     super.searchStarted(search);
 
@@ -219,6 +221,7 @@ public class HeapTracker extends PropertyListenerAdapter {
     stat = (PathStat)stat.clone();
   }
 
+  @Override
   public void stateAdvanced(Search search) {
 
     if (search.isNewState()) {
@@ -234,6 +237,7 @@ public class HeapTracker extends PropertyListenerAdapter {
     }
   }
 
+  @Override
   public void stateBacktracked(Search search) {
     nBacktrack++;
 
@@ -243,6 +247,7 @@ public class HeapTracker extends PropertyListenerAdapter {
   }
 
   /******************************************* PublisherExtension interface ****/
+  @Override
   public void publishFinished (Publisher publisher) {
     PrintWriter pw = publisher.getOut();
     publisher.publishTopicStart("heap statistics");
@@ -308,16 +313,18 @@ public class HeapTracker extends PropertyListenerAdapter {
 
 
   /******************************************* VMListener interface *********/
-  public void gcBegin(JVM vm) {
+  @Override
+  public void gcBegin(VM vm) {
     /**
      System.out.println();
-     System.out.println( "----- gc cycle: " + jvm.getDynamicArea().getGcNumber()
-     + ", state: " + jvm.getStateId());
+     System.out.println( "----- gc cycle: " + vm.getDynamicArea().getGcNumber()
+     + ", state: " + vm.getStateId());
      **/
   }
 
-  public void gcEnd(JVM jvm) {
-    Heap heap = jvm.getHeap();
+  @Override
+  public void gcEnd(VM vm) {
+    Heap heap = vm.getHeap();
 
     int n = 0;
     int nShared = 0;
@@ -367,12 +374,11 @@ public class HeapTracker extends PropertyListenerAdapter {
     return StringSetMatcher.isMatch(clsName, includes, excludes);
   }
 
-  public void objectCreated(JVM jvm) {
-    ElementInfo ei = jvm.getLastElementInfo();
+  @Override
+  public void objectCreated(VM vm, ThreadInfo ti, ElementInfo ei) {
     int idx = ei.getObjectRef();
-    ThreadInfo ti = jvm.getLastThreadInfo();
     int line = ti.getLine();
-    MethodInfo mi = ti.getMethod();
+    MethodInfo mi = ti.getTopFrameMethodInfo();
     SourceRef sr = null;
 
     if (!isRelevantType(ei)) {
@@ -407,14 +413,13 @@ public class HeapTracker extends PropertyListenerAdapter {
     if (throwOutOfMemory) {
       if (((maxHeapSizeLimit >=0) && (stat.heapSize > maxHeapSizeLimit)) ||
           ((maxLiveLimit >=0) && ((stat.nNew - stat.nReleased) > maxLiveLimit))){
-        jvm.getHeap().setOutOfMemory(true);
+        vm.getHeap().setOutOfMemory(true);
       }
     }
   }
 
-
-  public void objectReleased(JVM jvm) {
-    ElementInfo ei = jvm.getLastElementInfo();
+  @Override
+  public void objectReleased(VM vm, ThreadInfo ti, ElementInfo ei) {
 
     if (!isRelevantType(ei)) {
       return;

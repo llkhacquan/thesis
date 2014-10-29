@@ -19,8 +19,8 @@
 package gov.nasa.jpf.search.heuristic;
 
 import gov.nasa.jpf.Config;
-import gov.nasa.jpf.jvm.JVM;
 import gov.nasa.jpf.search.Search;
+import gov.nasa.jpf.vm.VM;
 
 
 /**
@@ -28,7 +28,7 @@ import gov.nasa.jpf.search.Search;
  */
 public class BFSHeuristic extends SimplePriorityHeuristic {
   
-  public BFSHeuristic (Config config, JVM vm) {    
+  public BFSHeuristic (Config config, VM vm) {    
   	super(config,vm);
   	Search.log.info("BFS Search");
   }

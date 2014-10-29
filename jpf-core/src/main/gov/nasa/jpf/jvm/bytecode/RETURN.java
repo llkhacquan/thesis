@@ -18,20 +18,20 @@
 //
 package gov.nasa.jpf.jvm.bytecode;
 
-import gov.nasa.jpf.jvm.ClassInfo;
-import gov.nasa.jpf.jvm.ElementInfo;
-import gov.nasa.jpf.jvm.KernelState;
-import gov.nasa.jpf.jvm.SystemState;
-import gov.nasa.jpf.jvm.ThreadInfo;
+import gov.nasa.jpf.vm.ClassInfo;
+import gov.nasa.jpf.vm.ElementInfo;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.ThreadInfo;
 
 
 /**
  * Return void from method
  *   ...  [empty]
  */
-public class RETURN extends ReturnInstruction {
+public class RETURN extends JVMReturnInstruction {
 
-  public Instruction execute (SystemState ss, KernelState ks, ThreadInfo ti) {
+  public Instruction execute (ThreadInfo ti) {
 
     // Constructors don't return anything so this is the only instruction that can be used to return from a constructor.
 
@@ -40,7 +40,7 @@ public class RETURN extends ReturnInstruction {
     if (mi.isInit()) {  // Check to see if this method is a constructor.
 
       int objref = ti.getThis();
-      ElementInfo ei = ks.heap.get(objref); // Get the object.
+      ElementInfo ei = ti.getElementInfo(objref); // Get the object.
 
       if (!ei.isConstructed()) {  // Don't bother doing the following work if the object is already constructed.
 
@@ -48,23 +48,33 @@ public class RETURN extends ReturnInstruction {
         ClassInfo mi_ci = mi.getClassInfo();  // Get the method's class.
 
         if (ei_ci == mi_ci) { // If the object's class and the method's class are equal, then the thread is returning from the object's constructor.
+          ei = ei.getModifiableInstance();
           ei.setConstructed();
         }
       }
     }
 
-    return super.execute(ss, ks, ti);
+    return super.execute(ti);
   }
 
+  public int getReturnTypeSize() {
+    return 0;
+  }
+  
+  protected Object getReturnedOperandAttr (StackFrame frame) {
+    return null;
+  }
+
+  
   public Object getReturnAttr (ThreadInfo ti){
     return null; // no return value
   }
 
-  protected void storeReturnValue (ThreadInfo th) {
+  protected void getAndSaveReturnValue (StackFrame frame) {
     // we don't have any
   }
 
-  protected void pushReturnValue (ThreadInfo th) {
+  protected void pushReturnValue (StackFrame frame) {
     // nothing to do
   }
 
@@ -81,7 +91,7 @@ public class RETURN extends ReturnInstruction {
     return 0xB1;
   }
   
-  public void accept(InstructionVisitor insVisitor) {
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
   }
 }

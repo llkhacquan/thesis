@@ -20,12 +20,12 @@ package gov.nasa.jpf.listener;
 
 import gov.nasa.jpf.JPF;
 import gov.nasa.jpf.ListenerAdapter;
-import gov.nasa.jpf.jvm.ElementInfo;
-import gov.nasa.jpf.jvm.JVM;
-import gov.nasa.jpf.jvm.ThreadInfo;
 import gov.nasa.jpf.search.DFSearch;
 import gov.nasa.jpf.search.Search;
 import gov.nasa.jpf.search.heuristic.BFSHeuristic;
+import gov.nasa.jpf.vm.ElementInfo;
+import gov.nasa.jpf.vm.VM;
+import gov.nasa.jpf.vm.ThreadInfo;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -101,14 +101,13 @@ public class LockedStackDepth extends ListenerAdapter
       return(result);
    }
 
-   public void objectLocked(JVM vm)
+   @Override
+   public void objectLocked(VM vm, ThreadInfo thread, ElementInfo ei)
    {
-      ThreadInfo thread;
       ElementInfo lock;
       Integer depth;
 
-      lock   = vm.getLastElementInfo();
-      thread = vm.getLastThreadInfo();
+      lock   = ei;
 
       logStack(thread);
 
@@ -130,17 +129,15 @@ public class LockedStackDepth extends ListenerAdapter
       new Operation(lock, depth);
    }
 
-   public void objectUnlocked(JVM vm)
+   @Override
+   public void objectUnlocked(VM vm, ThreadInfo thread, ElementInfo ei)
    {
-      ThreadInfo thread;
       ElementInfo lock;
       Integer depth;
 
-      thread = vm.getLastThreadInfo();
-
       logStack(thread);
 
-      lock   = vm.getLastElementInfo();
+      lock   = ei;
       depth  = new Operation(lock, null).getOldDepth();
 
       assert !m_state.containsKey(makeKey(lock));
@@ -164,6 +161,7 @@ public class LockedStackDepth extends ListenerAdapter
       }
    }
 
+   @Override
    public void searchStarted(Search search)
    {
       m_operations.clear();
@@ -172,6 +170,7 @@ public class LockedStackDepth extends ListenerAdapter
       m_current = null;
    }
 
+   @Override
    public void stateAdvanced(Search search)
    {
       Integer id;
@@ -187,6 +186,7 @@ public class LockedStackDepth extends ListenerAdapter
       logState();
    }
 
+   @Override
    public void stateProcessed(Search search)
    {
       Integer id;
@@ -203,11 +203,13 @@ public class LockedStackDepth extends ListenerAdapter
          s_logger.fine("State Processed: " + id);
    }
 
+   @Override
    public void stateBacktracked(Search search)
    {
       switchTo(search);
    }
 
+   @Override
    public void stateRestored(Search search)
    {
       switchTo(search);

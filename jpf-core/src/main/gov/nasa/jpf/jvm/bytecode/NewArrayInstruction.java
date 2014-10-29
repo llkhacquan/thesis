@@ -19,10 +19,10 @@
 
 package gov.nasa.jpf.jvm.bytecode;
 
-import gov.nasa.jpf.jvm.AllocInstruction;
-import gov.nasa.jpf.jvm.Types;
+import gov.nasa.jpf.vm.bytecode.NewInstruction;
+import gov.nasa.jpf.vm.Types;
 
-public abstract class NewArrayInstruction extends Instruction implements AllocInstruction {
+public abstract class NewArrayInstruction extends NewInstruction implements JVMInstruction {
 
   protected String type;
   protected String typeName; // deferred initialization

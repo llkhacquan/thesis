@@ -18,12 +18,14 @@
 //
 package gov.nasa.jpf.jvm.bytecode;
 
-import gov.nasa.jpf.jvm.ClassInfo;
-import gov.nasa.jpf.jvm.Heap;
-import gov.nasa.jpf.jvm.KernelState;
-import gov.nasa.jpf.jvm.SystemState;
-import gov.nasa.jpf.jvm.ThreadInfo;
-import gov.nasa.jpf.jvm.Types;
+import gov.nasa.jpf.vm.ClassInfo;
+import gov.nasa.jpf.vm.ClassLoaderInfo;
+import gov.nasa.jpf.vm.ElementInfo;
+import gov.nasa.jpf.vm.Heap;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.ThreadInfo;
+import gov.nasa.jpf.vm.Types;
 
 
 /**
@@ -36,8 +38,10 @@ public class NEWARRAY extends NewArrayInstruction {
     type = Types.getElementDescriptorOfType(typeCode);
   }
 
-  public Instruction execute (SystemState ss, KernelState ks, ThreadInfo ti) {
-    arrayLength = ti.pop();
+  public Instruction execute (ThreadInfo ti) {
+    StackFrame frame = ti.getModifiableTopFrame();
+
+    arrayLength = frame.pop();
     Heap heap = ti.getHeap();
 
     if (arrayLength < 0){
@@ -47,7 +51,7 @@ public class NEWARRAY extends NewArrayInstruction {
     // there is no clinit for array classes, but we still have  to create a class object
     // since its a builtin class, we also don't have to bother with NoClassDefFoundErrors
     String clsName = "[" + type;
-    ClassInfo ci = ClassInfo.getResolvedClassInfo(clsName);
+    ClassInfo ci = ClassLoaderInfo.getCurrentResolvedClassInfo(clsName);
 
     if (!ci.isRegistered()) {
       ci.registerClass(ti);
@@ -61,11 +65,11 @@ public class NEWARRAY extends NewArrayInstruction {
                                         "[" + arrayLength + "]");
     }
     
-    int arrayRef = heap.newArray(type, arrayLength, ti);
-    ti.push(arrayRef, true);
-
-    ss.checkGC(); // has to happen after we push the new object ref
+    ElementInfo eiArray = heap.newArray(type, arrayLength, ti);
+    int arrayRef = eiArray.getObjectRef();
     
+    frame.pushRef(arrayRef);
+
     return getNext(ti);
   }
 
@@ -77,7 +81,7 @@ public class NEWARRAY extends NewArrayInstruction {
     return 0xBC;
   }
   
-  public void accept(InstructionVisitor insVisitor) {
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
   }
 

@@ -18,9 +18,10 @@
 //
 package gov.nasa.jpf.jvm.bytecode;
 
-import gov.nasa.jpf.jvm.ArrayIndexOutOfBoundsExecutiveException;
-import gov.nasa.jpf.jvm.ElementInfo;
-import gov.nasa.jpf.jvm.ThreadInfo;
+import gov.nasa.jpf.vm.ArrayIndexOutOfBoundsExecutiveException;
+import gov.nasa.jpf.vm.ElementInfo;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.ThreadInfo;
 
 
 /**
@@ -31,8 +32,8 @@ public class FASTORE extends ArrayStoreInstruction {
 
   float value;
 
-  protected void popValue(ThreadInfo ti){
-    value = Float.intBitsToFloat(ti.pop());
+  protected void popValue(StackFrame frame){
+    value = Float.intBitsToFloat(frame.pop());
   }
 
   protected void setField (ElementInfo ei, int index) throws ArrayIndexOutOfBoundsExecutiveException {
@@ -45,7 +46,7 @@ public class FASTORE extends ArrayStoreInstruction {
     return 0x51;
   }
   
-  public void accept(InstructionVisitor insVisitor) {
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
   }
 }

@@ -18,9 +18,10 @@
 //
 package gov.nasa.jpf.jvm.bytecode;
 
-import gov.nasa.jpf.jvm.ArrayIndexOutOfBoundsExecutiveException;
-import gov.nasa.jpf.jvm.ElementInfo;
-import gov.nasa.jpf.jvm.ThreadInfo;
+import gov.nasa.jpf.vm.ArrayIndexOutOfBoundsExecutiveException;
+import gov.nasa.jpf.vm.ElementInfo;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.ThreadInfo;
 
 
 /**
@@ -39,19 +40,21 @@ public abstract class LongArrayStoreInstruction extends ArrayStoreInstruction {
     return 2;
   }
 
-  protected long getValue (ThreadInfo th) {
-    return th.longPop();
+  protected long getValue (ThreadInfo ti) {
+    StackFrame frame = ti.getModifiableTopFrame();    
+    return frame.popLong();
   }
   
-  protected int peekArrayRef(ThreadInfo ti) {
-    return ti.peek(3);  // ..,ref,idx,long(value)
+  public int peekArrayRef(ThreadInfo ti) {
+    return ti.getTopFrame().peek(3);  // ..,ref,idx,long(value)
   }
 
-  protected int peekIndex(ThreadInfo ti){
-    return ti.peek(2);
+  @Override
+  public int peekIndex(ThreadInfo ti){
+    return ti.getTopFrame().peek(2);
   }
   
-  public void accept(InstructionVisitor insVisitor) {
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
   }
 }

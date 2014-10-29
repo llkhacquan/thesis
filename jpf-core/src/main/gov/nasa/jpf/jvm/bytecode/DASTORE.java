@@ -18,9 +18,10 @@
 //
 package gov.nasa.jpf.jvm.bytecode;
 
-import gov.nasa.jpf.jvm.ArrayIndexOutOfBoundsExecutiveException;
-import gov.nasa.jpf.jvm.ElementInfo;
-import gov.nasa.jpf.jvm.ThreadInfo;
+import gov.nasa.jpf.vm.ArrayIndexOutOfBoundsExecutiveException;
+import gov.nasa.jpf.vm.ElementInfo;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.ThreadInfo;
 
 
 /**
@@ -31,8 +32,8 @@ public class DASTORE extends LongArrayStoreInstruction {
 
   double value;
 
-  protected void popValue(ThreadInfo ti){
-    value = Double.longBitsToDouble(ti.longPop());
+  protected void popValue(StackFrame frame){
+    value = Double.longBitsToDouble(frame.popLong());
   }
 
   protected void setField (ElementInfo ei, int index) throws ArrayIndexOutOfBoundsExecutiveException {
@@ -45,7 +46,7 @@ public class DASTORE extends LongArrayStoreInstruction {
     return 0x52;
   }
   
-  public void accept(InstructionVisitor insVisitor) {
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
   }
 }

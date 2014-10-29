@@ -18,20 +18,23 @@
 //
 package gov.nasa.jpf.jvm.bytecode;
 
-import gov.nasa.jpf.jvm.ClassInfo;
-import gov.nasa.jpf.jvm.ElementInfo;
-import gov.nasa.jpf.jvm.Heap;
-import gov.nasa.jpf.jvm.KernelState;
-import gov.nasa.jpf.jvm.SystemState;
-import gov.nasa.jpf.jvm.ThreadInfo;
-import gov.nasa.jpf.jvm.Types;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.ClassInfo;
+import gov.nasa.jpf.vm.ClassLoaderInfo;
+import gov.nasa.jpf.vm.ElementInfo;
+import gov.nasa.jpf.vm.Heap;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.LoadOnJPFRequired;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.ThreadInfo;
+import gov.nasa.jpf.vm.Types;
 
 
 /**
  * Create new multidimensional array
  * ..., count1, [count2, ...] => ..., arrayref
  */
-public class MULTIANEWARRAY extends Instruction {
+public class MULTIANEWARRAY extends Instruction implements JVMInstruction {
   protected String type;
   
   protected int dimensions;
@@ -43,29 +46,40 @@ public class MULTIANEWARRAY extends Instruction {
   }
 
   public static int allocateArray (Heap heap, String type, int[] dim, ThreadInfo ti, int d) {
-    int         l = dim[d];
-    int         arrayRef = heap.newArray(type.substring(d + 1), l, ti);
-    ElementInfo e = heap.get(arrayRef);
+    int l = dim[d];
+    ElementInfo eiArray = heap.newArray(type.substring(d + 1), l, ti);
 
     if (dim.length > (d + 1)) {
       for (int i = 0; i < l; i++) {
-        e.setReferenceElement(i, allocateArray(heap, type, dim, ti, d + 1));
+        eiArray.setReferenceElement(i, allocateArray(heap, type, dim, ti, d + 1));
       }
     }
 
-    return arrayRef;
+    return eiArray.getObjectRef();
   }
 
-  public Instruction execute (SystemState ss, KernelState ks, ThreadInfo ti) {
+  public Instruction execute (ThreadInfo ti) {
+    String compType = Types.getComponentTerminal(type);
+
+    // resolve the component class first
+    if(Types.isReferenceSignature(type)) {
+      try {
+        ti.resolveReferencedClass(compType);
+      } catch(LoadOnJPFRequired lre) {
+        return ti.getPC();
+      }
+    }
+
     arrayLengths = new int[dimensions];
+    StackFrame frame = ti.getModifiableTopFrame();
 
     for (int i = dimensions - 1; i >= 0; i--) {
-      arrayLengths[i] = ti.pop();
+      arrayLengths[i] = frame.pop();
     }
 
     // there is no clinit for array classes, but we still have  to create a class object
     // since its a builtin class, we also don't have to bother with NoClassDefFoundErrors
-    ClassInfo ci = ClassInfo.getResolvedClassInfo(type);
+    ClassInfo ci = ClassLoaderInfo.getCurrentResolvedClassInfo(type);
     if (!ci.isRegistered()) {
       ci.registerClass(ti);
       ci.setInitialized();
@@ -74,7 +88,7 @@ public class MULTIANEWARRAY extends Instruction {
     int arrayRef = allocateArray(ti.getHeap(), type, arrayLengths, ti, 0);
 
     // put the result (the array reference) on the stack
-    ti.push(arrayRef, true);
+    frame.pushRef(arrayRef);
 
     return getNext(ti);
   }
@@ -87,7 +101,7 @@ public class MULTIANEWARRAY extends Instruction {
     return 0xC5;
   }
   
-  public void accept(InstructionVisitor insVisitor) {
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
   }
 

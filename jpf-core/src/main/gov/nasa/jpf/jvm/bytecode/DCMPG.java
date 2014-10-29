@@ -18,27 +18,19 @@
 //
 package gov.nasa.jpf.jvm.bytecode;
 
-import gov.nasa.jpf.jvm.KernelState;
-import gov.nasa.jpf.jvm.SystemState;
-import gov.nasa.jpf.jvm.ThreadInfo;
-import gov.nasa.jpf.jvm.Types;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.ThreadInfo;
+import gov.nasa.jpf.vm.Types;
 
 
 /**
  * Compare double
  * ..., value1, value2 => ..., result
  */
-public class DCMPG extends Instruction {
+public class DCMPG extends DoubleCompareInstruction {
 
-  public Instruction execute (SystemState ss, KernelState ks, ThreadInfo th) {
-    double v1 = Types.longToDouble(th.longPop());
-    double v2 = Types.longToDouble(th.longPop());
-
-    th.push(conditionValue(v1, v2), false);
-    
-    return getNext(th);
-  }
-
+  @Override
   protected int conditionValue(double v1, double v2) {
     if (Double.isNaN(v1) || Double.isNaN(v2)) {
       return 1;
@@ -51,11 +43,13 @@ public class DCMPG extends Instruction {
     }
   }
 
+  @Override
   public int getByteCode () {
     return 0x98;
   }
   
-  public void accept(InstructionVisitor insVisitor) {
+  @Override
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
   }
 }

@@ -19,19 +19,19 @@
 package gov.nasa.jpf.test.mc.basic;
 
 import gov.nasa.jpf.ListenerAdapter;
-import gov.nasa.jpf.jvm.JVM;
-import gov.nasa.jpf.jvm.MethodInfo;
-import gov.nasa.jpf.jvm.StackFrame;
-import gov.nasa.jpf.jvm.ThreadInfo;
-import gov.nasa.jpf.jvm.Verify;
 import gov.nasa.jpf.jvm.bytecode.DSTORE;
 import gov.nasa.jpf.jvm.bytecode.INVOKEVIRTUAL;
 import gov.nasa.jpf.jvm.bytecode.ISTORE;
-import gov.nasa.jpf.jvm.bytecode.Instruction;
-import gov.nasa.jpf.jvm.bytecode.InvokeInstruction;
+import gov.nasa.jpf.jvm.bytecode.JVMInvokeInstruction;
 import gov.nasa.jpf.jvm.bytecode.LRETURN;
 import gov.nasa.jpf.util.ObjectList;
 import gov.nasa.jpf.util.test.TestJPF;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.VM;
+import gov.nasa.jpf.vm.MethodInfo;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.ThreadInfo;
+import gov.nasa.jpf.vm.Verify;
 
 import org.junit.Test;
 
@@ -40,7 +40,7 @@ import org.junit.Test;
  */
 public class AttrsTest extends TestJPF {
 
-//------------ this part we only need outside the JPF execution
+//------------ this part we only need outside of JPF execution
   static class AttrType {
     public String toString() {
       return "<an AttrType>";
@@ -53,59 +53,92 @@ public class AttrsTest extends TestJPF {
 
     public IntListener () {}
 
-    public void instructionExecuted (JVM vm){
-      Instruction insn = vm.getLastInstruction();
-      MethodInfo mi = insn.getMethodInfo();
+    @Override
+    public void instructionExecuted (VM vm, ThreadInfo ti, Instruction nextInsn, Instruction executedInsn){
+      MethodInfo mi = executedInsn.getMethodInfo();
 
       // not very efficient, but who cares - it's a small test
-      if (insn instanceof ISTORE){
+      if (executedInsn instanceof ISTORE){
         if (mi.getName().equals("testIntPropagation")){
-          ISTORE istore = (ISTORE)insn;
-          ThreadInfo ti = vm.getLastThreadInfo();
+          ISTORE istore = (ISTORE)executedInsn;
           String localName = istore.getLocalVariableName();
           int localIndex = istore.getLocalVariableIndex();
 
           if (localName.equals("i")){
-            ti.setLocalAttr(localIndex, ATTR);
-            Object a = ti.getLocalAttr(localIndex, ATTR_CLASS);
+            StackFrame frame = ti.getModifiableTopFrame();
+            frame.setLocalAttr(localIndex, ATTR);
+            
+            Object a = frame.getLocalAttr(localIndex, ATTR_CLASS);
             System.out.println("'i' attribute set to: " + a);
 
           } else if (localName.equals("j")){
-            Object a = ti.getLocalAttr(localIndex, ATTR_CLASS);
-            System.out.println("'j' attribute: " + a);
-
-            /** get's overwritten in the model class
-            if (a != ATTR){
-              throw new JPFException("attribute propagation failed");
-            }
-            **/
+            StackFrame frame = ti.getTopFrame();
+            
+            Object a = frame.getLocalAttr(localIndex, ATTR_CLASS);
+            System.out.println("'j' AttrType attribute: " + a);
           }
         }
       }
     }
   }
+  
+  static int sInt;
+  int iInt;
 
+  static double sDouble;
+  double iDouble;
+
+  int echoInt (int a){
+    return a;
+  }
+
+  @Test public void testIntPropagation () {
+    if (verifyNoPropertyViolation("+listener=.test.mc.basic.AttrsTest$IntListener")) {
+      int i = 42; // this gets attributed
+      Verify.setLocalAttribute("i", 42); // this overwrites whatever the ISTORE listener did set on 'i'
+      int attr = Verify.getLocalAttribute("i");
+      Verify.println("'i' attribute after Verify.setLocalAttribute(\"i\",42): " + attr);
+      assertTrue( attr == 42);
+
+      iInt = echoInt(i); // return val -> instance field
+      sInt = iInt; // instance field -> static field
+      int j = sInt; // static field -> local - now j should have the initial i attribute, and value 42
+      
+      attr = Verify.getLocalAttribute("j");
+      Verify.println("'j' attribute after assignment: " + attr);
+      assertTrue( attr == 42);
+    }
+  }
+  
+  //----------------------------------------------------------------------------------------------
+  
   public static class DoubleListener extends ListenerAdapter {
 
     public DoubleListener () {}
 
-    public void instructionExecuted (JVM vm){
-      Instruction insn = vm.getLastInstruction();
-      MethodInfo mi = insn.getMethodInfo();
+    @Override
+    public void instructionExecuted (VM vm, ThreadInfo ti, Instruction nextInsn, Instruction executedInsn){
+      MethodInfo mi = executedInsn.getMethodInfo();
 
-      if (insn instanceof DSTORE){
+      if (executedInsn instanceof DSTORE){
         if (mi.getName().equals("testDoublePropagation")){
-          DSTORE dstore = (DSTORE)insn;
-          ThreadInfo ti = vm.getLastThreadInfo();
+          DSTORE dstore = (DSTORE)executedInsn;
           String localName = dstore.getLocalVariableName();
           int localIndex = dstore.getLocalVariableIndex();
 
           if (localName.equals("d")){
-            ti.setLocalAttr(localIndex, ATTR);
+            StackFrame frame = ti.getModifiableTopFrame();
+
+            System.out.print("listener setting 'd' attr = ");
+            frame.setLocalAttr(localIndex, ATTR);
+            Object a = frame.getLocalAttr(localIndex);
+            System.out.println( a);
 
           } else if (localName.equals("r")){
-            Object a = ti.getLocalAttr(localIndex, ATTR_CLASS);
+            StackFrame frame = ti.getTopFrame();
+            Object a = frame.getLocalAttr(localIndex, ATTR_CLASS);
             System.out.println("'r' attribute: " + a);
+            
             /** get's overwritten in the model class
             if (a != ATTR){
               throw new JPFException("attribute propagation failed");
@@ -118,13 +151,37 @@ public class AttrsTest extends TestJPF {
     }
   }
 
+  @Test public void testDoublePropagation () {
+    if (verifyNoPropertyViolation("+listener=.test.mc.basic.AttrsTest$DoubleListener")) {
+      double d = 42.0; // this gets attributed
+      Verify.setLocalAttribute("d", 42);  // this overwrites whatever the DSTORE listener did set on 'd'
+      int attr = Verify.getLocalAttribute("d");
+      assert attr == 42;
+
+      // some noise on the stack
+      iDouble = echoDouble(d);
+      sDouble = iDouble;
+
+      //double r = sDouble; // now r should have the same attribute
+      double r = echoDouble(d);
+
+      attr = Verify.getLocalAttribute("r");
+      Verify.print("@ 'r' attribute after assignment: " + attr);
+      Verify.println();
+
+      assert attr == 42;
+    }
+  }
+
+  
+  //-----------------------------------------------------------------------------------------------
+
   public static class InvokeListener extends ListenerAdapter {
 
-    public void instructionExecuted (JVM vm){
-      Instruction insn = vm.getLastInstruction();
-      if (insn instanceof InvokeInstruction) {
-        InvokeInstruction call = (InvokeInstruction)insn;
-        ThreadInfo ti = vm.getLastThreadInfo();
+    @Override
+    public void instructionExecuted (VM vm, ThreadInfo ti, Instruction nextInsn, Instruction executedInsn){
+      if (executedInsn instanceof JVMInvokeInstruction) {
+        JVMInvokeInstruction call = (JVMInvokeInstruction)executedInsn;
         MethodInfo mi = call.getInvokedMethod();
         String mName = mi.getName();
         if (mName.equals("goModel") || mName.equals("goNative")) {
@@ -145,53 +202,7 @@ public class AttrsTest extends TestJPF {
       }
     }
   }
-
-  static int sInt;
-  int iInt;
-
-  static double sDouble;
-  double iDouble;
-
-  int echoInt (int a){
-    return a;
-  }
-
-  @Test public void testIntPropagation () {
-    if (verifyNoPropertyViolation("+listener=.test.mc.basic.AttrsTest$IntListener")) {
-      int i = 42; // this gets attributed
-      Verify.setLocalAttribute("i", 42); // this overwrites whatever the ISTORE listener did set on 'i'
-
-      iInt = echoInt(i);
-      sInt = iInt;
-      int j = sInt; // now j should have the initial i attribute, and value 42
-
-      int attr = Verify.getLocalAttribute("j");
-      Verify.print("@ 'j' attribute after assignment: " + attr);
-      Verify.println();
-
-      assert attr == 42;
-    }
-  }
-
-  @Test public void testDoublePropagation () {
-    if (verifyNoPropertyViolation("+listener=.test.mc.basic.AttrsTest$DoubleListener")) {
-      double d = 42.0; // this gets attributed
-      Verify.setLocalAttribute("d", 42);  // this overwrites whatever the ISTORE listener did set on 'd'
-
-      iDouble = echoDouble(d);
-      sDouble = iDouble;
-
-      //double r = sDouble; // now r should have the same attribute
-      double r = echoDouble(d);
-
-      int attr = Verify.getLocalAttribute("r");
-      Verify.print("@ 'r' attribute after assignment: " + attr);
-      Verify.println();
-
-      assert attr == 42;
-    }
-  }
-
+  
   @Test public void testInvokeListener () {
     if (verifyNoPropertyViolation("+listener=.test.mc.basic.AttrsTest$InvokeListener")) {
       Verify.setLocalAttribute("this", 1);
@@ -417,30 +428,33 @@ public class AttrsTest extends TestJPF {
     
     public MixedAttrTypeListener() {}
     
-    public void executeInstruction (JVM vm){
-      ThreadInfo ti = vm.getLastThreadInfo();
-      Instruction insn = vm.getLastInstruction();
+    @Override
+    public void executeInstruction (VM vm, ThreadInfo ti, Instruction insnToExecute){
       
-      if (insn instanceof INVOKEVIRTUAL){
-        MethodInfo callee = ((INVOKEVIRTUAL)insn).getInvokedMethod();
+      if (insnToExecute instanceof INVOKEVIRTUAL){
+        MethodInfo callee = ((INVOKEVIRTUAL)insnToExecute).getInvokedMethod();
         if (callee.getUniqueName().equals("foo(J)J")){
           System.out.println("--- pre-exec foo() invoke interception, setting arg attrs");
           
-          // we are still in the caller stackframe
-          ti.addLongOperandAttr("foo-arg");
-          ti.addLongOperandAttr(Long.valueOf(ti.longPeek()));
+          StackFrame frame = ti.getModifiableTopFrame();
           
-          for (Object a: ti.longOperandAttrIterator()){
+          // we are still in the caller stackframe
+          frame.addLongOperandAttr("foo-arg");
+          
+          Long v = Long.valueOf( frame.peekLong());
+          frame.addLongOperandAttr( v);
+          
+          System.out.println("   operand attrs:");
+          for (Object a: frame.longOperandAttrIterator()){
             System.out.println(a);
           }
-
         }
         
-      } else if (insn instanceof LRETURN){
-        MethodInfo mi = insn.getMethodInfo();
+      } else if (insnToExecute instanceof LRETURN){
+        MethodInfo mi = insnToExecute.getMethodInfo();
         if (mi.getUniqueName().equals("foo(J)J")){
           System.out.println("--- pre-exec foo() return interception");
-          StackFrame frame = ti.getTopFrame();
+          StackFrame frame = ti.getModifiableTopFrame();
           int varIdx = frame.getLocalVariableSlotIndex("x");
           Object attr = frame.getLocalAttr(varIdx);
 
@@ -461,16 +475,15 @@ public class AttrsTest extends TestJPF {
       }
     }
     
-    public void instructionExecuted (JVM vm){
-      ThreadInfo ti = vm.getLastThreadInfo();
-      Instruction insn = vm.getLastInstruction();
+    @Override
+    public void instructionExecuted (VM vm, ThreadInfo ti, Instruction nextInsn, Instruction executedInsn){
 
-      if (insn instanceof INVOKEVIRTUAL){
-        MethodInfo callee = ((INVOKEVIRTUAL)insn).getInvokedMethod();
+      if (executedInsn instanceof INVOKEVIRTUAL){
+        MethodInfo callee = ((INVOKEVIRTUAL)executedInsn).getInvokedMethod();
         if (callee.getUniqueName().equals("foo(J)J")){
           System.out.println("--- post-exec foo() invoke interception");
  
-          StackFrame frame = ti.getTopFrame(); // we are now in the callee
+          StackFrame frame = ti.getModifiableTopFrame(); // we are now in the callee
           int varIdx = frame.getLocalVariableSlotIndex("x");
 
           for (Object a: frame.localAttrIterator(varIdx)){
@@ -495,21 +508,23 @@ public class AttrsTest extends TestJPF {
           }
         }
         
-      } else if (insn instanceof LRETURN){
-        MethodInfo mi = insn.getMethodInfo();
+      } else if (executedInsn instanceof LRETURN){
+        MethodInfo mi = executedInsn.getMethodInfo();
         if (mi.getUniqueName().equals("foo(J)J")){
+          StackFrame frame = ti.getTopFrame();
+          
           System.out.println("--- post-exec foo() return interception");
-          for (Object a: ti.longOperandAttrIterator()){
+          for (Object a: frame.longOperandAttrIterator()){
             System.out.println(a);
           }
           
-          String a = ti.getLongOperandAttr(String.class);
+          String a = frame.getLongOperandAttr(String.class);
           assertTrue( a.equals("returned"));
           
-          a = ti.getNextLongOperandAttr(String.class, a);
+          a = frame.getNextLongOperandAttr(String.class, a);
           assertTrue( a.equals("foo-arg"));
           
-          a = ti.getNextLongOperandAttr(String.class, a);
+          a = frame.getNextLongOperandAttr(String.class, a);
           assertTrue(a == null);
         }        
       }

@@ -20,15 +20,16 @@ package gov.nasa.jpf.report;
 
 import gov.nasa.jpf.Config;
 import gov.nasa.jpf.Error;
-import gov.nasa.jpf.jvm.ClassInfo;
-import gov.nasa.jpf.jvm.JVM;
-import gov.nasa.jpf.jvm.MethodInfo;
-import gov.nasa.jpf.jvm.Path;
-import gov.nasa.jpf.jvm.Step;
-import gov.nasa.jpf.jvm.Transition;
-import gov.nasa.jpf.jvm.bytecode.Instruction;
 import gov.nasa.jpf.util.Left;
 import gov.nasa.jpf.util.RepositoryEntry;
+import gov.nasa.jpf.vm.ClassInfo;
+import gov.nasa.jpf.vm.ClassLoaderInfo;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.VM;
+import gov.nasa.jpf.vm.MethodInfo;
+import gov.nasa.jpf.vm.Path;
+import gov.nasa.jpf.vm.Step;
+import gov.nasa.jpf.vm.Transition;
 
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
@@ -47,12 +48,12 @@ public class ConsolePublisher extends Publisher {
   String port;
 
   // the various degrees of information for program traces
-  boolean showCG;
-  boolean showSteps;
-  boolean showLocation;
-  boolean showSource;
-  boolean showMethod;
-  boolean showCode;
+  protected boolean showCG;
+  protected boolean showSteps;
+  protected boolean showLocation;
+  protected boolean showSource;
+  protected boolean showMethod;
+  protected boolean showCode;
 
   public ConsolePublisher(Config conf, Reporter reporter) {
     super(conf, reporter);
@@ -111,7 +112,7 @@ public class ConsolePublisher extends Publisher {
   public void publishStart() {
     super.publishStart();
 
-    if (startTopics.length > 0){ // only report if we have output for this phase
+    if (startItems.length > 0){ // only report if we have output for this phase
       publishTopicStart("search started: " + formatDTG(reporter.getStartDate()));
     }
   }
@@ -119,7 +120,7 @@ public class ConsolePublisher extends Publisher {
   public void publishFinished() {
     super.publishFinished();
 
-    if (finishedTopics.length > 0){ // only report if we have output for this phase
+    if (finishedItems.length > 0){ // only report if we have output for this phase
       publishTopicStart("search finished: " + formatDTG(reporter.getFinishedDate()));
     }
   }
@@ -165,40 +166,13 @@ public class ConsolePublisher extends Publisher {
 
   protected void publishSuT() {
     publishTopicStart("system under test");
-
-    String mainCls = conf.getTarget();
-    if (mainCls != null) {
-      String mainPath = reporter.getSuT();
-      if (mainPath != null) {
-        out.println("application: " + mainPath);
-
-        RepositoryEntry rep = RepositoryEntry.getRepositoryEntry(mainPath);
-        if (rep != null) {
-          out.println("repository: " + rep.getRepository());
-          out.println("revision: " + rep.getRevision());
-        }
-      } else {
-        out.println("application: " + mainCls + ".class");
-      }
-    } else {
-      out.println("application: ?");
-    }
-
-    String[] args = conf.getTargetArgs();
-    if (args.length > 0) {
-      out.print("arguments:   ");
-      for (String s : args) {
-        out.print(s);
-        out.print(' ');
-      }
-      out.println();
-    }
+    out.println( reporter.getSuT());
   }
 
   protected void publishError() {
-    Error e = reporter.getLastError();
+    Error e = reporter.getCurrentError();
 
-    publishTopicStart("error " + reporter.getLastErrorId());
+    publishTopicStart("error " + e.getId());
     out.println(e.getDescription());
 
     String s = e.getDetails();
@@ -260,7 +234,7 @@ public class ConsolePublisher extends Publisher {
       return; // nothing to publish
     }
 
-    publishTopicStart("trace " + reporter.getLastErrorId());
+    publishTopicStart("trace " + reporter.getCurrentErrorId());
 
     for (Transition t : path) {
       out.print("------------------------------------------------------ ");
@@ -334,7 +308,7 @@ public class ConsolePublisher extends Publisher {
       return; // nothing to publish
     }
 
-    publishTopicStart("output " + reporter.getLastErrorId());
+    publishTopicStart("output " + reporter.getCurrentErrorId());
 
     if (path.hasOutput()) {
       for (Transition t : path) {
@@ -349,11 +323,11 @@ public class ConsolePublisher extends Publisher {
   }
 
   protected void publishSnapshot() {
-    JVM vm = reporter.getVM();
+    VM vm = reporter.getVM();
 
     // not so nice - we have to delegate this since it's using a lot of internals, and is also
     // used in debugging
-    publishTopicStart("snapshot " + reporter.getLastErrorId());
+    publishTopicStart("snapshot " + reporter.getCurrentErrorId());
 
     if (vm.getPathLength() > 0) {
       vm.printLiveThreadStatus(out);
@@ -366,25 +340,31 @@ public class ConsolePublisher extends Publisher {
   
   // this is useful if somebody wants to monitor progress from a specialized ConsolePublisher
   public synchronized void printStatistics (PrintWriter pw){
-    Statistics stat = reporter.getStatistics();
     publishTopicStart( STATISTICS_TOPIC);
+    printStatistics( pw, reporter);
+  }
+  
+  // this can be used outside a publisher, to show the same info
+  public static void printStatistics (PrintWriter pw, Reporter reporter){
+    Statistics stat = reporter.getStatistics();
     
     pw.println("elapsed time:       " + formatHMS(reporter.getElapsedTime()));
-    pw.println("states:             new=" + stat.newStates + ", visited=" + stat.visitedStates
-            + ", backtracked=" + stat.backtracked + ", end=" + stat.endStates);
-    pw.println("search:             maxDepth=" + stat.maxDepth + ", constraints hit=" + stat.constraints);
+    pw.println("states:             new=" + stat.newStates + ",visited=" + stat.visitedStates
+            + ",backtracked=" + stat.backtracked + ",end=" + stat.endStates);
+    pw.println("search:             maxDepth=" + stat.maxDepth + ",constraints=" + stat.constraints);
     pw.println("choice generators:  thread=" + stat.threadCGs
-            + " (signal=" + stat.signalCGs + ", lock=" + stat.monitorCGs + ", shared ref=" + stat.sharedAccessCGs
+            + " (signal=" + stat.signalCGs + ",lock=" + stat.monitorCGs + ",sharedRef=" + stat.sharedAccessCGs
+            + ",threadApi=" + stat.threadApiCGs + ",reschedule=" + stat.breakTransitionCGs
             + "), data=" + stat.dataCGs);
     pw.println("heap:               " + "new=" + stat.nNewObjects
-            + ", released=" + stat.nReleasedObjects
-            + ", max live=" + stat.maxLiveObjects
-            + ", gc-cycles=" + stat.gcCycles);
+            + ",released=" + stat.nReleasedObjects
+            + ",maxLive=" + stat.maxLiveObjects
+            + ",gcCycles=" + stat.gcCycles);
     pw.println("instructions:       " + stat.insns);
     pw.println("max memory:         " + (stat.maxUsed >> 20) + "MB");
 
-    pw.println("loaded code:        classes=" + ClassInfo.getNumberOfLoadedClasses() + ", methods="
-            + MethodInfo.getNumberOfLoadedMethods());    
+    pw.println("loaded code:        classes=" + ClassLoaderInfo.getNumberOfLoadedClasses() + ",methods="
+            + MethodInfo.getNumberOfLoadedMethods());
   }
   
   public void publishStatistics() {

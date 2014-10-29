@@ -21,11 +21,12 @@ package gov.nasa.jpf.listener;
 import gov.nasa.jpf.Config;
 import gov.nasa.jpf.JPF;
 import gov.nasa.jpf.ListenerAdapter;
-import gov.nasa.jpf.jvm.JVM;
-import gov.nasa.jpf.jvm.StackFrame;
-import gov.nasa.jpf.jvm.ThreadInfo;
-import gov.nasa.jpf.jvm.bytecode.Instruction;
 import gov.nasa.jpf.util.JPFLogger;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.MethodInfo;
+import gov.nasa.jpf.vm.VM;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.ThreadInfo;
 
 /**
  * listener that throws a java.lang.StackOverflowError in case a thread
@@ -45,20 +46,20 @@ public class StackDepthChecker extends ListenerAdapter {
   }
   
   @Override
-  public void methodEntered (JVM vm){
+  public void methodEntered (VM vm, ThreadInfo thread, MethodInfo mi){
     
-    ThreadInfo ti = vm.getCurrentThread();
+    ThreadInfo ti = ThreadInfo.getCurrentThread();
     int depth = ti.getStackDepth(); // note this is only an approximation since it also returns natives and overlays
     
     if (depth > maxDepth){
       log.info("configured vm.max_stack_depth exceeded: ", depth);
       
-      // NOTE - we get this notification from inside of the InvokeInstruction.execute(),
+      // NOTE - we get this notification from inside of the InvokeInstruction.enter(),
       // i.e. before we get the instructionExecuted(). Throwing exceptions is
       // therefore a bit harder since we have to set the next pc explicitly
 
       Instruction nextPc = ti.createAndThrowException("java.lang.StackOverflowError");
-      StackFrame topFrame = ti.getClonedTopFrame();
+      StackFrame topFrame = ti.getModifiableTopFrame();
       topFrame.setPC(nextPc);
     }
   }

@@ -18,26 +18,30 @@
 //
 package gov.nasa.jpf.jvm.bytecode;
 
-import gov.nasa.jpf.jvm.KernelState;
-import gov.nasa.jpf.jvm.SystemState;
-import gov.nasa.jpf.jvm.ThreadInfo;
+import gov.nasa.jpf.vm.bytecode.StoreInstruction;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.ThreadInfo;
 
 
 /**
  * Store int into local variable
  * ..., value => ...
  */
-public class ISTORE extends LocalVariableInstruction implements StoreInstruction {
+public class ISTORE extends JVMLocalVariableInstruction implements StoreInstruction {
 
   public ISTORE(int localVarIndex){
     super(localVarIndex);
   }
 
-  public Instruction execute (SystemState ss, KernelState ks, ThreadInfo th) {
-    //th.setLocalVariable(index, th.pop(), false);
-    th.storeOperand(index);
+  @Override
+  public Instruction execute (ThreadInfo ti) {
+    StackFrame frame = ti.getModifiableTopFrame();
+    
+    frame.storeOperand(index);
+    
+    return getNext(ti);
 
-    return getNext(th);
   }
 
   public int getLength() {
@@ -48,6 +52,7 @@ public class ISTORE extends LocalVariableInstruction implements StoreInstruction
     }
   }
   
+  @Override
   public int getByteCode () {
     switch (index) {
     case 0: return 0x3b;
@@ -62,7 +67,8 @@ public class ISTORE extends LocalVariableInstruction implements StoreInstruction
     return "istore";
   }
   
-  public void accept(InstructionVisitor insVisitor) {
+  @Override
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
   }
 }

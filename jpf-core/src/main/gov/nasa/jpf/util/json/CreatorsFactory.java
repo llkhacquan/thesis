@@ -19,8 +19,8 @@
 
 package gov.nasa.jpf.util.json;
 
-import gov.nasa.jpf.jvm.ElementInfo;
-import gov.nasa.jpf.jvm.MJIEnv;
+import gov.nasa.jpf.vm.ElementInfo;
+import gov.nasa.jpf.vm.MJIEnv;
 
 import java.util.HashMap;
 
@@ -53,8 +53,8 @@ class BoxedBoolCreator implements Creator {
 
     if (read != null) {
       boolRef = env.newObject("java.lang.Boolean");
-      ElementInfo intEI = env.getElementInfo(boolRef);
-      intEI.setIntField("value", (read == true) ? 1 : 0);
+      ElementInfo ei = env.getModifiableElementInfo(boolRef);
+      ei.setBooleanField("value", (read == true));
     }
 
     return boolRef;
@@ -68,8 +68,8 @@ class BoxedByteCreator implements Creator {
 
     if (read != null) {
       byteRef = env.newObject("java.lang.Byte");
-      ElementInfo intEI = env.getElementInfo(byteRef);
-      intEI.setIntField("value", read.byteValue());
+      ElementInfo ei = env.getModifiableElementInfo(byteRef);
+      ei.setByteField("value", read.byteValue());
     }
 
     return byteRef;
@@ -83,8 +83,8 @@ class BoxedShortCreator implements Creator {
 
     if (read != null) {
       shortRef = env.newObject("java.lang.Short");
-      ElementInfo intEI = env.getElementInfo(shortRef);
-      intEI.setIntField("value", read.shortValue());
+      ElementInfo ei = env.getModifiableElementInfo(shortRef);
+      ei.setShortField("value", read.shortValue());
     }
 
     return shortRef;
@@ -98,8 +98,8 @@ class BoxedIntCreator implements Creator {
 
     if (read != null) {
       intRef = env.newObject("java.lang.Integer");
-      ElementInfo intEI = env.getElementInfo(intRef);
-      intEI.setIntField("value", read.intValue());
+      ElementInfo ei = env.getModifiableElementInfo(intRef);
+      ei.setIntField("value", read.intValue());
     }
 
     return intRef;
@@ -113,8 +113,8 @@ class BoxedLongCreator implements Creator {
 
     if (read != null) {
       longRef = env.newObject("java.lang.Long");
-      ElementInfo intEI = env.getElementInfo(longRef);
-      intEI.setLongField("value", read.longValue());
+      ElementInfo ei = env.getModifiableElementInfo(longRef);
+      ei.setLongField("value", read.longValue());
     }
 
     return longRef;
@@ -128,12 +128,8 @@ class BoxedFloatCreator implements Creator {
 
     if (read != null) {
       floatRef = env.newObject("java.lang.Float");
-      ElementInfo intEI = env.getElementInfo(floatRef);
-
-      Float flt = read.floatValue();
-
-
-      intEI.setIntField("value", flt.floatToIntBits(flt));
+      ElementInfo ei = env.getModifiableElementInfo(floatRef);
+      ei.setFloatField("value", read.floatValue());
     }
 
     return floatRef;
@@ -147,8 +143,8 @@ class BoxedDoubleCreator implements Creator {
 
     if (read != null) {
       doubleRef = env.newObject("java.lang.Double");
-      ElementInfo intEI = env.getElementInfo(doubleRef);
-      intEI.setDoubleField("value", read.doubleValue());
+      ElementInfo ei = env.getModifiableElementInfo(doubleRef);
+      ei.setDoubleField("value", read.doubleValue());
     }
 
     return doubleRef;

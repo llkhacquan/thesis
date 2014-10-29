@@ -19,13 +19,17 @@
 
 package gov.nasa.jpf.jvm.bytecode;
 
-import gov.nasa.jpf.jvm.ElementInfo;
-import gov.nasa.jpf.jvm.ThreadInfo;
+import gov.nasa.jpf.vm.ElementInfo;
+import gov.nasa.jpf.vm.MJIEnv;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.ThreadInfo;
+import gov.nasa.jpf.vm.Types;
+import gov.nasa.jpf.vm.bytecode.InstanceInvokeInstruction;
 
 /**
  * base class for INVOKEVIRTUAL, INVOKESPECIAL and INVOLEINTERFACE
  */
-public abstract class InstanceInvocation extends InvokeInstruction {
+public abstract class InstanceInvocation extends JVMInvokeInstruction implements InstanceInvokeInstruction {
 
   protected InstanceInvocation() {}
 
@@ -33,27 +37,47 @@ public abstract class InstanceInvocation extends InvokeInstruction {
     super(clsDescriptor, methodName, signature);
   }
 
+  public int getArgSize () {
+    if (argSize < 0) {
+      argSize = Types.getArgumentsSize(signature) + 1; // 'this'
+    }
 
+    return argSize;
+  }
+  
   public int getCalleeThis (ThreadInfo ti) {
     if (!ti.isPostExec()){
       // we have to dig out the 'this' reference from the callers stack
       return ti.getCalleeThis( getArgSize());
     } else {
-      // execute() cached it
+      // enter() cached it
       return lastObj;
     }
   }
 
+  @Override
+  public int getObjectSlot (StackFrame frame){
+    int top = frame.getTopPos();
+    int argSize = getArgSize();
+    
+    if (argSize == 1){ // object ref is on top
+      return top;
+      
+    } else {
+      return top - argSize -1;
+    }
+  }
+  
   public ElementInfo getThisElementInfo (ThreadInfo ti) {
     int thisRef = getCalleeThis(ti);
-    if (thisRef != -1) {
+    if (thisRef != MJIEnv.NULL) {
       return ti.getElementInfo(thisRef);
     } else {
       return null;
     }
   }
   
-  public void accept(InstructionVisitor insVisitor) {
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
   }
 

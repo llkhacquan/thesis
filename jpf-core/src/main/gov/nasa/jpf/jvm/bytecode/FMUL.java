@@ -18,26 +18,29 @@
 //
 package gov.nasa.jpf.jvm.bytecode;
 
-import gov.nasa.jpf.jvm.KernelState;
-import gov.nasa.jpf.jvm.SystemState;
-import gov.nasa.jpf.jvm.ThreadInfo;
-import gov.nasa.jpf.jvm.Types;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.ThreadInfo;
+import gov.nasa.jpf.vm.Types;
 
 
 /**
  * Multiply float
  * ..., value1, value2 => ..., result
  */
-public class FMUL extends Instruction {
+public class FMUL extends Instruction implements JVMInstruction {
 
-  public Instruction execute (SystemState ss, KernelState ks, ThreadInfo th) {
-    float v1 = Types.intToFloat(th.pop());
-    float v2 = Types.intToFloat(th.pop());
+  public Instruction execute (ThreadInfo ti) {
+    StackFrame frame = ti.getModifiableTopFrame();
+
+    float v1 = frame.popFloat();
+    float v2 = frame.popFloat();
     
     float r = v1 * v2;    
-    th.push(Types.floatToInt(r), false);
+    frame.push(Types.floatToInt(r), false);
 
-    return getNext(th);
+    return getNext(ti);
   }
 
 
@@ -45,7 +48,7 @@ public class FMUL extends Instruction {
     return 0x6A;
   }
   
-  public void accept(InstructionVisitor insVisitor) {
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
   }
 }

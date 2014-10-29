@@ -19,14 +19,15 @@
 
 package gov.nasa.jpf.jvm.bytecode;
 
-import gov.nasa.jpf.jvm.KernelState;
-import gov.nasa.jpf.jvm.MethodInfo;
-import gov.nasa.jpf.jvm.Ref;
-import gov.nasa.jpf.jvm.SystemState;
-import gov.nasa.jpf.jvm.ThreadInfo;
-import gov.nasa.jpf.jvm.Types;
-import gov.nasa.jpf.jvm.choice.InvocationCG;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.jvm.JVMInstructionFactory;
 import gov.nasa.jpf.util.Invocation;
+import gov.nasa.jpf.vm.MethodInfo;
+import gov.nasa.jpf.vm.ObjRef;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.ThreadInfo;
+import gov.nasa.jpf.vm.Types;
+import gov.nasa.jpf.vm.choice.InvocationCG;
 
 import java.util.List;
 
@@ -36,10 +37,10 @@ import java.util.List;
  * executes in has enough operand space (e.g. a DirectCallStackFrame).
  * 
  */
-public class INVOKECG extends Instruction {
+public class INVOKECG extends Instruction implements JVMInstruction {
 
   List<Invocation>  invokes;
-  InvokeInstruction realInvoke;
+  JVMInvokeInstruction realInvoke;
 
   public INVOKECG(List<Invocation> invokes){
     this.invokes = invokes;
@@ -50,21 +51,21 @@ public class INVOKECG extends Instruction {
     this.invokes = invokes;
   }
   
-  public Instruction execute (SystemState ss, KernelState ks, ThreadInfo ti) {
+  public Instruction execute (ThreadInfo ti) {
     
     if (!ti.isFirstStepInsn()) {
       InvocationCG cg = new InvocationCG( "INVOKECG", invokes);
-      if (ss.setNextChoiceGenerator(cg)){
+      if (ti.getVM().setNextChoiceGenerator(cg)){
         return this;
       }
       
     } else {
-      InvocationCG cg = ss.getCurrentChoiceGenerator( "INVOKECG", InvocationCG.class);
+      InvocationCG cg = ti.getVM().getCurrentChoiceGenerator( "INVOKECG", InvocationCG.class);
       assert (cg != null) : "no current InvocationCG";
 
       Invocation call = cg.getNextChoice();
       MethodInfo callee = call.getMethodInfo();
-      gov.nasa.jpf.jvm.InstructionFactory insnFactory = MethodInfo.getInstructionFactory();
+      JVMInstructionFactory insnFactory = JVMInstructionFactory.getFactory();
 
       String clsName = callee.getClassInfo().getName();
       String mthName = callee.getName();
@@ -86,38 +87,40 @@ public class INVOKECG extends Instruction {
   }
 
   void pushArguments (ThreadInfo ti, Object[] args, Object[] attrs){
+    StackFrame frame = ti.getModifiableTopFrame();
+    
     if (args != null){
       for (int i=0; i<args.length; i++){
         Object a = args[i];
         boolean isLong = false;
         
         if (a != null){
-          if (a instanceof Ref){
-            ti.push(((Ref)a).getReference(), true);
+          if (a instanceof ObjRef){
+            frame.pushRef(((ObjRef)a).getReference());
           } else if (a instanceof Boolean){
-            ti.push((Boolean)a ? 1 : 0, false);
+            frame.push((Boolean)a ? 1 : 0, false);
           } else if (a instanceof Integer){
-            ti.push((Integer)a, false);
+            frame.push((Integer)a, false);
           } else if (a instanceof Long){
-            ti.longPush((Long)a);
+            frame.pushLong((Long)a);
             isLong = true;
           } else if (a instanceof Double){
-            ti.longPush(Types.doubleToLong((Double)a));
+            frame.pushLong(Types.doubleToLong((Double)a));
             isLong = true;
           } else if (a instanceof Byte){
-            ti.push((Byte)a, false);
+            frame.push((Byte)a, false);
           } else if (a instanceof Short){
-            ti.push((Short)a, false);
+            frame.push((Short)a, false);
           } else if (a instanceof Float){
-            ti.push(Types.floatToInt((Float)a), false);
+            frame.push(Types.floatToInt((Float)a), false);
           }
         }
 
         if (attrs != null && attrs[i] != null){
           if (isLong){
-            ti.setLongOperandAttrNoClone(attrs[i]);
+            frame.setLongOperandAttr(attrs[i]);
           } else {
-            ti.setOperandAttrNoClone(attrs[i]);
+            frame.setOperandAttr(attrs[i]);
           }
         }
       }
@@ -134,7 +137,7 @@ public class INVOKECG extends Instruction {
     return OPCODE;
   }
   
-  public void accept(InstructionVisitor insVisitor) {
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
   }
   

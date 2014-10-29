@@ -94,12 +94,12 @@ import java.util.regex.Pattern;
  * settings that are used to initialize class loading by the host VM and JPF
  *
  * (3) one *.jpf application properties - this specifies all the settings for a
- * specific JPF run, esp. listener and target/target_args.
+ * specific JPF run, esp. listener and target/target.args.
  * app properties can be specified as the sole JPF argument, i.e. instead of
  * a SUT classname
  *     ..
  *     target = x.Y.MySystemUnderTest
- *     target_args = one,two
+ *     target.args = one,two
  *     ..
  *     listener = z.MyListener
  *
@@ -134,9 +134,6 @@ import java.util.regex.Pattern;
 @SuppressWarnings("serial")
 public class Config extends Properties {
 
-  public static final String TARGET_KEY = "target";
-  public static final String TARGET_ARGS_KEY = "target_args";
-
   static final char   KEY_PREFIX = '@';
   public static final String REQUIRES_KEY = "@requires";
   public static final String INCLUDE_KEY = "@include";
@@ -160,6 +157,9 @@ public class Config extends Properties {
 
   static final String IGNORE_VALUE = "-";
 
+  // maximum number of processes for distributed applications
+  public static int MAX_NUM_PRC = 16;
+
   // do we want to log the config init
   public static boolean log = false;
 
@@ -170,8 +170,11 @@ public class Config extends Properties {
     }
   }
 
+  // it seems bad design to keep ClassLoader management in a glorified Properties object,
+  // but a lot of what Config does is to resolve configured types, for which we need
+  // control over the loader that is used for resolution
   ClassLoader loader = Config.class.getClassLoader();
-  
+    
   // where did we initialize from
   ArrayList<Object> sources = new ArrayList<Object>();
   
@@ -185,21 +188,24 @@ public class Config extends Properties {
   
   public final Object[] CONFIG_ARGS = { this };
 
-  String[] args; // our original (non-nullified) command line args
-
+  // the original command line args that were passed into the constructor
+  String[] args;
+  
+  // non-property/option command line args (starting from the first arg that is not prepened by '-','+')
+  String[] freeArgs;
 
   /**
    * the standard Config constructor that processes the whole properties stack
-   * @param args - usually command line args (incl. '+' options) 
    */
-  public Config (String[] args)  {
-    this.args = args;
-    String[] a = args.clone(); // we might nullify some of them
+  public Config (String[] cmdLineArgs)  {
+    args = cmdLineArgs;
+    String[] a = cmdLineArgs.clone(); // we might nullify some of them
 
+    // we need the app properties (*.jpf) pathname upfront because it might define 'site'
     String appProperties = getAppPropertiesLocation(a);
-    String siteProperties = getSitePropertiesLocation(a, appProperties);
 
     //--- the site properties
+    String siteProperties = getSitePropertiesLocation( a, appProperties);
     if (siteProperties != null){
       loadProperties( siteProperties);
     }
@@ -320,7 +326,7 @@ public class Config extends Properties {
 
   /*
    * note that matching args are expanded and stored here, to avoid any
-   * discrepancy whith value expansions (which are order-dependent)
+   * discrepancy with value expansions (which are order-dependent)
    */
   protected String getPathArg (String[] args, String key){
     int keyLen = key.length();
@@ -578,21 +584,18 @@ public class Config extends Properties {
    * argument syntax:
    *          {'+'<key>['='<val>'] | '-'<driver-arg>} {<free-arg>}
    *
-   * (1) null args are ignored
-   * (2) all config args start with '+'
+   * (1) null cmdLineArgs are ignored
+   * (2) all config cmdLineArgs start with '+'
    * (3) if '=' is ommitted, a 'true' value is assumed
    * (4) if <val> is ommitted, a 'null' value is assumed
    * (5) no spaces around '='
-   * (6) all '-' driver-args are ignored
-   * (7) if 'target' is already set (from 'jpf.app' property or
-   *     "*.jpf" free-arg), all remaining <free-args> are 'target_args'
-   *     otherwise 'target' is set to the first free-arg
+   * (6) all '-' driver-cmdLineArgs are ignored
    */
 
-  protected void loadArgs (String[] args) {
+  protected void loadArgs (String[] cmdLineArgs) {
 
-    for (int i=0; i<args.length; i++){
-      String a = args[i];
+    for (int i=0; i<cmdLineArgs.length; i++){
+      String a = cmdLineArgs[i];
 
       if (a != null && a.length() > 0){
         switch (a.charAt(0)){
@@ -603,19 +606,11 @@ public class Config extends Properties {
           case '-': // driver arg, ignore
             continue;
 
-          default:  // target args to follow
+          default:  // free (non property/option) cmdLineArgs to follow
 
-            if (getString(TARGET_KEY) == null){ // no 'target' yet
-              setTarget(a);
-              i++;
-            }
-
-            int n = args.length - i;
-            if (n > 0){ // we (might) have 'target_args'
-              String[] targetArgs = new String[n];
-              System.arraycopy(args, i, targetArgs, 0, n);
-              setTargetArgs(targetArgs);
-            }
+            int n = cmdLineArgs.length - i;
+            freeArgs = new String[n];
+            System.arraycopy(cmdLineArgs, i, freeArgs, 0, n);
 
             return;
         }
@@ -975,6 +970,23 @@ public class Config extends Properties {
     return append(key, value, LIST_SEPARATOR); // append with our standard list separator
   }
 
+  /**
+   * check if we have a key.index entry. If not, check the non-indexed key. If no
+   * key found return null
+   * This simplifies clients that can have process id indexed properties
+   */
+  public String getIndexableKey (String key, int index){
+    String k = key + '.' + index;
+    if (containsKey(k)){
+      return k;
+    } else {
+      if (containsKey(key)){
+        return key;
+      }
+    }
+    
+    return null; // neither indexed nor non-indexed key in dictionary
+  }
 
   public void setClassLoader (ClassLoader newLoader){
     loader = newLoader;
@@ -988,7 +1000,7 @@ public class Config extends Properties {
     return Config.class.getClassLoader() != loader;
   }
 
-  public JPFClassLoader initClassLoader( ClassLoader parent) {
+  public JPFClassLoader initClassLoader (ClassLoader parent) {
     ArrayList<String> list = new ArrayList<String>();
 
     // we prefer to call this here automatically instead of allowing
@@ -1013,12 +1025,19 @@ public class Config extends Properties {
 
     String[] nativeLibs = getCompactStringArray("native_libraries");
 
-    JPFClassLoader cl = new JPFClassLoader( urls, nativeLibs, parent);
-
-    //for (URL url : urls) System.out.println("@@ " + url);
-
+    JPFClassLoader cl;
+    if (parent instanceof JPFClassLoader){ // no need to create a new one, just initialize
+      cl = (JPFClassLoader)parent;
+      for (URL url : urls){
+        cl.addURL(url);
+      }
+      cl.setNativeLibs(nativeLibs);
+      
+    } else {    
+      cl = new JPFClassLoader( urls, nativeLibs, parent);
+    }
+    
     loader = cl;
-
     return cl;
   }
 
@@ -1100,41 +1119,60 @@ public class Config extends Properties {
     throw new JPFConfigException(msg);
   }
 
-  //------------------------ special properties
-  public String getTarget() {
-    return getString(TARGET_KEY);
-  }
+  /**
+   * return any command line args that are not options or properties
+   * (this usually contains the application class and arguments)
+   */
+  public String[] getFreeArgs(){
+    return freeArgs;
+  } 
 
-  public void setTarget (String target){
-    setProperty(TARGET_KEY,target);
+  //--- special keys
+  
+  /*
+   * target and its associated keys (target.args, target.entry) are now
+   * just ordinary key/value pairs and only here as convenience methods
+   * for JPF drivers/shells so that you don't have to remember the key names
+   * 
+   * NOTE - this does only work for a SingleProcessVM, and only has the
+   * desired effect before the JPF object is created
+   */
+  
+  public void setTarget (String clsName) {
+    put("target", clsName);
   }
-
-  public String[] getTargetArgs() {
-    String[] args = getStringArray(TARGET_ARGS_KEY);
-    if (args == null){
-      args = new String[0];
-    }
-    return args;
+  public String getTarget(){
+    return getString("target");
   }
-
-  public void setTargetArgs (String... args) {
+  
+  public void setTargetArgs (String[] args) {
     StringBuilder sb = new StringBuilder();
-    for (int i=0, n = 0; i < args.length; i++) {
-      String a = args[i];
-      if (a != null) {
-        if (n++ > 0) {
-          sb.append(LIST_SEPARATOR);
-        }
-        // we expand to be consistent with an explicit 'target_args' spec
-        sb.append(expandString(null, a));
+    int i=0;
+    for (String a : args){
+      if (i++ > 0){
+        sb.append(',');
       }
+      sb.append(a);
     }
-    if (sb.length() > 0) {
-      setProperty(TARGET_ARGS_KEY, sb.toString());
+    put("target.args", sb.toString());
+  }
+  public String[] getTargetArgs(){
+    String[] a = getStringArray("target.args");
+    if (a == null){
+      return new String[0];
+    } else {
+      return a;
     }
   }
-
-
+  
+  public void setTargetEntry (String mthName) {
+    put("target.entry", mthName);
+  }
+  public String getTargetEntry(){
+    return getString("target.entry");
+  }
+  
+  
   //----------------------- type specific accessors
 
   public boolean getBoolean(String key) {
@@ -2269,7 +2307,7 @@ public class Config extends Properties {
       }
 
     } else {
-      throw new JPFConfigException("no project path for " + key);
+      //throw new JPFConfigException("no project path for " + key);
     }
   }
 

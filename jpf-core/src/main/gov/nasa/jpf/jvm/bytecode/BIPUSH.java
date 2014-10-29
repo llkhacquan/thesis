@@ -18,16 +18,17 @@
 //
 package gov.nasa.jpf.jvm.bytecode;
 
-import gov.nasa.jpf.jvm.KernelState;
-import gov.nasa.jpf.jvm.SystemState;
-import gov.nasa.jpf.jvm.ThreadInfo;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.ThreadInfo;
 
 
 /**
  * Push byte
  * ... => ..., value
  */
-public class BIPUSH extends Instruction {
+public class BIPUSH extends Instruction implements JVMInstruction {
   private int value;
 
   public BIPUSH() {} // this is going away
@@ -36,10 +37,13 @@ public class BIPUSH extends Instruction {
     this.value = value;
   }
 
-  public Instruction execute (SystemState ss, KernelState ks, ThreadInfo th) {
-    th.push(value, false);
+  @Override
+  public Instruction execute (ThreadInfo ti) {
+    StackFrame frame = ti.getModifiableTopFrame();
 
-    return getNext(th);
+    frame.push(value);
+
+    return getNext(ti);
   }
   
   public int getValue(){
@@ -50,11 +54,13 @@ public class BIPUSH extends Instruction {
     return 2; // opcode, byte
   }
 
+  @Override
   public int getByteCode () {
     return 0x10;
   }
   
-  public void accept(InstructionVisitor insVisitor) {
+  @Override
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
   }
 }

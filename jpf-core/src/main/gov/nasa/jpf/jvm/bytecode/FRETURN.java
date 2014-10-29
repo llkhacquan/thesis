@@ -18,37 +18,46 @@
 //
 package gov.nasa.jpf.jvm.bytecode;
 
-import gov.nasa.jpf.jvm.ThreadInfo;
-import gov.nasa.jpf.jvm.Types;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.ThreadInfo;
+import gov.nasa.jpf.vm.Types;
 
 
 /**
  * Return float from method
  * ..., value => [empty]
  */
-public class FRETURN extends ReturnInstruction {
+public class FRETURN extends JVMReturnInstruction {
 
-  int ret;
+  float ret;
   
+  public int getReturnTypeSize() {
+    return 1;
+  }
 
-  protected void storeReturnValue (ThreadInfo th) {
-    ret = th.pop();
+  protected Object getReturnedOperandAttr (StackFrame frame) {
+    return frame.getOperandAttr();
   }
   
-  protected void pushReturnValue (ThreadInfo th) {
-    th.push(ret, false);
+  protected void getAndSaveReturnValue (StackFrame frame) {
+    ret = frame.popFloat();
+  }
+  
+  protected void pushReturnValue (StackFrame frame) {
+    frame.pushFloat(ret);
   }
   
   public float getReturnValue () {
-    return Types.intToFloat(ret);
+    return ret;
   }
   
   public Float getReturnValue (ThreadInfo ti) {
     if (!isCompleted(ti)) { // we have to pull it from the operand stack
-      ret = ti.peek();
+      StackFrame frame = ti.getTopFrame();
+      ret = frame.peekFloat();
     }
     
-    return new Float(Types.intToFloat(ret));
+    return new Float(ret);
   }
   
   public int getByteCode () {
@@ -59,7 +68,7 @@ public class FRETURN extends ReturnInstruction {
     return "freturn " + mi.getFullName();
   }
   
-  public void accept(InstructionVisitor insVisitor) {
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
   }
 }

@@ -18,40 +18,46 @@
 //
 package gov.nasa.jpf.jvm.bytecode;
 
-import gov.nasa.jpf.jvm.KernelState;
-import gov.nasa.jpf.jvm.SystemState;
-import gov.nasa.jpf.jvm.ThreadInfo;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.ThreadInfo;
 
 
 /**
  * Push float
  * ... => ..., <f>
  */
-public class FCONST extends Instruction {
-  private int value;
+public class FCONST extends Instruction implements JVMInstruction {
+  protected float value;
 
 
   public FCONST(){} // this is going away
 
   public FCONST(float f){
-    value = Float.floatToIntBits(f);
+    value = f;
   }
 
-  public Instruction execute (SystemState ss, KernelState ks, ThreadInfo th) {
-    th.push(value, false);
+  @Override
+  public Instruction execute (ThreadInfo ti) {
+    StackFrame frame = ti.getModifiableTopFrame();
+    
+    frame.pushFloat(value);
 
-    return getNext(th);
+    return getNext(ti);
   }
 
-  public int getValue(){
+  public float getValue(){
 	  return value;
   }
   
+  @Override
   public int getByteCode () {
     return 0x0B; // ?? FCONST_0, _1, _2
   }
   
-  public void accept(InstructionVisitor insVisitor) {
+  @Override
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
   }
 }

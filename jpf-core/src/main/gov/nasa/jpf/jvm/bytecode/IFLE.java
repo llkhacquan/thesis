@@ -18,7 +18,7 @@
 //
 package gov.nasa.jpf.jvm.bytecode;
 
-import gov.nasa.jpf.jvm.ThreadInfo;
+import gov.nasa.jpf.vm.StackFrame;
 
 /**
  * Branch if int comparison with zero succeeds
@@ -31,15 +31,15 @@ public class IFLE extends IfInstruction {
   }
 
 
-  public boolean popConditionValue (ThreadInfo ti) {
-    return (ti.pop() <= 0);
+  public boolean popConditionValue (StackFrame frame) {
+    return (frame.pop() <= 0);
   }
 
   public int getByteCode () {
     return 0x9E;
   }
   
-  public void accept(InstructionVisitor insVisitor) {
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
   }
 }

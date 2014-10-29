@@ -18,7 +18,7 @@
 //
 package gov.nasa.jpf.jvm.bytecode;
 
-import gov.nasa.jpf.jvm.ThreadInfo;
+import gov.nasa.jpf.vm.StackFrame;
 
 
 /**
@@ -32,8 +32,8 @@ public class IFEQ extends IfInstruction {
   }
 
 
-  public boolean popConditionValue (ThreadInfo ti) {
-    return (ti.pop() == 0);
+  public boolean popConditionValue (StackFrame frame) {
+    return (frame.pop() == 0);
   }
   
 
@@ -41,7 +41,7 @@ public class IFEQ extends IfInstruction {
     return 0x99;
   }
   
-  public void accept(InstructionVisitor insVisitor) {
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
   }
 }

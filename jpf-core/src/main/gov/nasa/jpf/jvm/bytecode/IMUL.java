@@ -18,31 +18,34 @@
 //
 package gov.nasa.jpf.jvm.bytecode;
 
-import gov.nasa.jpf.jvm.KernelState;
-import gov.nasa.jpf.jvm.SystemState;
-import gov.nasa.jpf.jvm.ThreadInfo;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.ThreadInfo;
 
 
 /**
  * Multiply int
  *  ..., value1, value2 => ..., result
  */
-public class IMUL extends Instruction {
+public class IMUL extends Instruction implements JVMInstruction {
 
-  public Instruction execute (SystemState ss, KernelState ks, ThreadInfo th) {
-    int v1 = th.pop();
-    int v2 = th.pop();
+  public Instruction execute (ThreadInfo ti) {
+    StackFrame frame = ti.getModifiableTopFrame();
 
-    th.push(v1 * v2, false);
+    int v1 = frame.pop();
+    int v2 = frame.pop();
 
-    return getNext(th);
+    frame.push(v1 * v2);
+
+    return getNext(ti);
   }
 
   public int getByteCode () {
     return 0x68;
   }
   
-  public void accept(InstructionVisitor insVisitor) {
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
   }
 }

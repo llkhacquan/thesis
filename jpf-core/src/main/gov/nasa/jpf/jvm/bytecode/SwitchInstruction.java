@@ -19,10 +19,13 @@
 
 package gov.nasa.jpf.jvm.bytecode;
 
-import gov.nasa.jpf.jvm.KernelState;
-import gov.nasa.jpf.jvm.SystemState;
-import gov.nasa.jpf.jvm.ThreadInfo;
-import gov.nasa.jpf.jvm.choice.IntIntervalGenerator;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.KernelState;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.SystemState;
+import gov.nasa.jpf.vm.ThreadInfo;
+import gov.nasa.jpf.vm.choice.IntIntervalGenerator;
 
 /**
  * common root class for LOOKUPSWITCH and TABLESWITCH insns
@@ -30,7 +33,7 @@ import gov.nasa.jpf.jvm.choice.IntIntervalGenerator;
  * <2do> this is inefficient. First, we should store targets as instruction indexes
  * to avoid execution() looping. Second, there are no matches for a TABLESWITCH
  */
-public abstract class SwitchInstruction extends Instruction {
+public abstract class SwitchInstruction extends Instruction implements JVMInstruction {
 
   public static final int DEFAULT = -1; 
   
@@ -50,8 +53,10 @@ public abstract class SwitchInstruction extends Instruction {
     return targets.length;
   }
 
-  protected Instruction executeConditional (SystemState ss, KernelState ks, ThreadInfo ti){
-    int value = ti.pop();
+  protected Instruction executeConditional (ThreadInfo ti){
+    StackFrame frame = ti.getModifiableTopFrame();
+
+    int value = frame.pop();
 
     lastIdx = DEFAULT;
 
@@ -65,10 +70,10 @@ public abstract class SwitchInstruction extends Instruction {
     return mi.getInstructionAt(target);
   }
   
-  public Instruction execute (SystemState ss, KernelState ks, ThreadInfo ti) {
+  public Instruction execute (ThreadInfo ti) {
     // this can be overridden by subclasses, so we have to delegate the conditional execution
     // to avoid getting recursive in executeAllBranches()
-    return executeConditional(ss,ks,ti);
+    return executeConditional(ti);
   }
 
   /** useful for symbolic execution modes */
@@ -80,14 +85,15 @@ public abstract class SwitchInstruction extends Instruction {
 
       } else {
         // listener did override CG, fall back to conditional execution
-        return executeConditional(ss,ks,ti);
+        return executeConditional(ti);
       }
       
     } else {
       IntIntervalGenerator cg = ss.getCurrentChoiceGenerator("switchAll", IntIntervalGenerator.class);
       assert (cg != null) : "no IntIntervalGenerator";
       
-      int idx = ti.pop(); // but we are not using it
+      StackFrame frame = ti.getModifiableTopFrame();
+      int idx = frame.pop(); // but we are not using it
       idx = cg.getNextChoice();
       
       if (idx == matches.length){ // default branch
@@ -114,7 +120,7 @@ public abstract class SwitchInstruction extends Instruction {
     return matches[idx];
   }
   
-  public void accept(InstructionVisitor insVisitor) {
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
   }
 

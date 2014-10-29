@@ -19,16 +19,18 @@
 package gov.nasa.jpf.jvm.bytecode;
 
 import gov.nasa.jpf.JPFException;
-import gov.nasa.jpf.jvm.KernelState;
-import gov.nasa.jpf.jvm.SystemState;
-import gov.nasa.jpf.jvm.ThreadInfo;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.KernelState;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.SystemState;
+import gov.nasa.jpf.vm.ThreadInfo;
 
 
 /**
  * Access jump table by index and jump
  *   ..., index  => ...
  */
-public class TABLESWITCH extends SwitchInstruction implements gov.nasa.jpf.jvm.TableSwitchInstruction {
+public class TABLESWITCH extends SwitchInstruction implements gov.nasa.jpf.vm.bytecode.TableSwitchInstruction {
 
   int min, max;
 
@@ -56,8 +58,10 @@ public class TABLESWITCH extends SwitchInstruction implements gov.nasa.jpf.jvm.T
     }
   }
 
-  protected Instruction executeConditional (SystemState ss, KernelState ks, ThreadInfo ti){
-    int value = ti.pop();
+  protected Instruction executeConditional (ThreadInfo ti){
+    StackFrame frame = ti.getModifiableTopFrame();
+
+    int value = frame.pop();
     int i = value-min;
     int pc;
 
@@ -82,7 +86,7 @@ public class TABLESWITCH extends SwitchInstruction implements gov.nasa.jpf.jvm.T
     return 0xAA;
   }
   
-  public void accept(InstructionVisitor insVisitor) {
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
   }
 }

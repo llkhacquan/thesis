@@ -19,11 +19,12 @@
 package gov.nasa.jpf.jvm.bytecode;
 
 import gov.nasa.jpf.JPFException;
-import gov.nasa.jpf.jvm.ChoiceGenerator;
-import gov.nasa.jpf.jvm.ElementInfo;
-import gov.nasa.jpf.jvm.KernelState;
-import gov.nasa.jpf.jvm.SystemState;
-import gov.nasa.jpf.jvm.ThreadInfo;
+import gov.nasa.jpf.vm.ElementInfo;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.MJIEnv;
+import gov.nasa.jpf.vm.Scheduler;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.ThreadInfo;
 
 
 /**
@@ -32,53 +33,42 @@ import gov.nasa.jpf.jvm.ThreadInfo;
  */
 public class MONITORENTER extends LockInstruction {
 
+  public Instruction execute (ThreadInfo ti) {
+    Scheduler scheduler = ti.getScheduler();
+    StackFrame frame = ti.getTopFrame();
 
-  public Instruction execute (SystemState ss, KernelState ks, ThreadInfo ti) {
-    int objref = ti.peek();      // Don't pop yet before we know we really execute
-
-    if (objref == -1){
+    int objref = frame.peek();      // Don't pop yet before we know we really enter
+    if (objref == MJIEnv.NULL){
       return ti.createAndThrowException("java.lang.NullPointerException", "Attempt to acquire lock for null object");
     }
 
     lastLockRef = objref;
-    ElementInfo ei = ks.heap.get(objref);
-
-    if (!ti.isFirstStepInsn()){ // check if we have a choicepoint
-      if (!isLockOwner(ti, ei)){  // maybe its a recursive lock
-
-        if (ei.canLock(ti)) { // we can lock the object, the CG is optional
-          if (ei.checkUpdatedSharedness(ti)) { // is this a shared object?
-            ChoiceGenerator<?> cg = ss.getSchedulerFactory().createMonitorEnterCG(ei, ti);
-            if (cg != null) {
-              if (ss.setNextChoiceGenerator(cg)) {
-                ei.registerLockContender(ti);  // Record that this thread would lock the object upon next execution
-                return this;
-              }
-            }
-          }
-
-        } else { // already locked by another thread, we have to block and therefore need a CG
-          ei.updateRefTidWith(ti.getId()); // Ok, now we know its shared
-
-          ei.block(ti); // do this before we obtain the CG so that this thread is not in its choice set
-
-          ChoiceGenerator<?> cg = ss.getSchedulerFactory().createMonitorEnterCG(ei, ti);
-          if (cg != null) {
-            if (ss.setNextChoiceGenerator(cg)) {
-              return this;
-            } else {
-              throw new JPFException("listener did override ChoiceGenerator for blocking MONITOR_ENTER");
-            }
-          } else {
-            throw new JPFException("scheduling policy did not return ChoiceGenerator for blocking MONITOR_ENTER");
-          }
+    ElementInfo ei = ti.getModifiableElementInfo(objref);    
+    ei = scheduler.updateObjectSharedness(ti, ei, null); // locks most likely belong to shared objects
+    
+    if (!ti.isLockOwner(ei)){ // we only need to register, block and/or reschedule if this is not a recursive lock
+      if (ei.canLock(ti)) {
+        // record that this thread would lock the object upon next execution if we break the transition
+        // (note this doesn't re-add if already registered)
+        ei.registerLockContender(ti);
+        if (scheduler.setsLockAcquisitionCG(ti, ei)) { // optional scheduling point
+          return this;
         }
+        
+      } else { // we need to block
+        ei.block(ti); // this means we only re-execute once we can acquire the lock
+        if (scheduler.setsBlockedThreadCG(ti, ei)){ // mandatory scheduling point
+          return this;
+        }
+        throw new JPFException("blocking MONITORENTER without transition break");            
       }
     }
-
-    // this is only executed in the bottom half
-    ti.pop();
-    ei.lock(ti);  // Still have to increment the lockCount
+    
+    //--- bottom half or lock acquisition succeeded without transition break
+    frame = ti.getModifiableTopFrame(); // now we need to modify it
+    frame.pop();
+    
+    ei.lock(ti);  // mark object as locked, increment the lockCount, and set the thread as owner
     
     return getNext(ti);
   }  
@@ -87,7 +77,7 @@ public class MONITORENTER extends LockInstruction {
     return 0xC2;
   }
   
-  public void accept(InstructionVisitor insVisitor) {
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
   }
 }

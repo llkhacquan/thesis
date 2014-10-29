@@ -18,8 +18,8 @@
 //
 package gov.nasa.jpf.test.mc.threads;
 
-import gov.nasa.jpf.jvm.Verify;
 import gov.nasa.jpf.util.test.TestJPF;
+import gov.nasa.jpf.vm.Verify;
 
 import org.junit.Test;
 
@@ -58,7 +58,8 @@ public class AtomicTest extends TestJPF {
     }
   }
   
-  @Test public void testDataCG () {
+  @Test 
+  public void testDataCG () {
     if (verifyNoPropertyViolation("+cg.enable_atomic")) {
       Runnable r = new Runnable() {
 

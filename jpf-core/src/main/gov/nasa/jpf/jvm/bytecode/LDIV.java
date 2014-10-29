@@ -18,36 +18,43 @@
 //
 package gov.nasa.jpf.jvm.bytecode;
 
-import gov.nasa.jpf.jvm.KernelState;
-import gov.nasa.jpf.jvm.SystemState;
-import gov.nasa.jpf.jvm.ThreadInfo;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.ThreadInfo;
 
 
 /**
  * Divide long
  * ..., value1, value2 => ..., result
  */
-public class LDIV extends Instruction {
+public class LDIV extends Instruction implements JVMInstruction {
 
-  public Instruction execute (SystemState ss, KernelState ks, ThreadInfo th) {
-    long v1 = th.longPop();
-    long v2 = th.longPop();
+  @Override
+  public Instruction execute (ThreadInfo ti) {
+    StackFrame frame = ti.getModifiableTopFrame();
+    
+    long v1 = frame.popLong();
+    long v2 = frame.popLong();
 
     if (v1 == 0) {
-      return th.createAndThrowException("java.lang.ArithmeticException",
-                                        "long division by zero");
+      return ti.createAndThrowException("java.lang.ArithmeticException", "long division by zero");
     }
+    
+    long r = v2 / v1;
+    
+    frame.pushLong(r);
 
-    th.longPush(v2 / v1);
-
-    return getNext(th);
+    return getNext(ti);
   }
 
+  @Override
   public int getByteCode () {
     return 0x6D;
   }
   
-  public void accept(InstructionVisitor insVisitor) {
+  @Override
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
   }
 }

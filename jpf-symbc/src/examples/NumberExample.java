@@ -1,3 +1,5 @@
+import gov.nasa.jpf.symbc.Debug;
+
 
 public class NumberExample {
 	
@@ -21,6 +23,7 @@ public class NumberExample {
 	public static void main(String[] args) {
 		NumberExample num = new NumberExample();
 		num.run(1);
+		Debug.printPC("Test");
 	}
 	
 }

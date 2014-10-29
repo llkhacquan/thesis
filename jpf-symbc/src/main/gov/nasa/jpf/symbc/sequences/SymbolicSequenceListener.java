@@ -22,18 +22,20 @@ import gov.nasa.jpf.Config;
 import gov.nasa.jpf.JPF;
 import gov.nasa.jpf.Property;
 import gov.nasa.jpf.PropertyListenerAdapter;
-import gov.nasa.jpf.jvm.ChoiceGenerator;
+import gov.nasa.jpf.vm.ChoiceGenerator;
 
-import gov.nasa.jpf.jvm.JVM;
-import gov.nasa.jpf.jvm.MethodInfo;
-import gov.nasa.jpf.jvm.NoUncaughtExceptionsProperty;
-import gov.nasa.jpf.jvm.StackFrame;
-import gov.nasa.jpf.jvm.SystemState;
-import gov.nasa.jpf.jvm.ThreadInfo;
-import gov.nasa.jpf.jvm.Types;
 
-import gov.nasa.jpf.jvm.bytecode.Instruction;
-import gov.nasa.jpf.jvm.bytecode.InvokeInstruction;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.MethodInfo;
+import gov.nasa.jpf.vm.NoUncaughtExceptionsProperty;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.SystemState;
+import gov.nasa.jpf.vm.ThreadInfo;
+import gov.nasa.jpf.vm.Types;
+import gov.nasa.jpf.vm.VM;
+
+
+import gov.nasa.jpf.jvm.bytecode.JVMInvokeInstruction;
 
 import gov.nasa.jpf.report.ConsolePublisher;
 import gov.nasa.jpf.report.Publisher;
@@ -69,7 +71,7 @@ import java.util.Vector;
  *
  * Algorithm (Works independent of search order):
  *
- * When instructionExecuted->InvokeInstruction, remember the executed method, symbolic attributes, etc.
+ * When instructionExecuted->JVMInvokeInstruction, remember the executed method, symbolic attributes, etc.
  * in a SequenceChoiceGenerator
  *
  * The main idea is to exploit the fact that
@@ -108,9 +110,10 @@ public class SymbolicSequenceListener extends PropertyListenerAdapter implements
 		jpf.addPublisherExtension(ConsolePublisher.class, this);
 	}
 
+	@Override
 	public void propertyViolated (Search search){
 		System.out.println("--------->property violated");
-		JVM vm = search.getVM();
+		VM vm = search.getVM();
 		SystemState ss = vm.getSystemState();
 		ChoiceGenerator<?> cg = vm.getChoiceGenerator();
 		if (!(cg instanceof PCChoiceGenerator)){
@@ -161,16 +164,19 @@ public class SymbolicSequenceListener extends PropertyListenerAdapter implements
 
 
 
-	public void instructionExecuted(JVM vm) {
+	@Override
+	 public void instructionExecuted(VM vm, ThreadInfo currentThread, Instruction nextInstruction, Instruction executedInstruction) {
+
+
 
 		if (!vm.getSystemState().isIgnored()) {
-			Instruction insn = vm.getLastInstruction();
+			Instruction insn = executedInstruction;
 			SystemState ss = vm.getSystemState();
-			ThreadInfo ti = vm.getLastThreadInfo();
+			ThreadInfo ti = currentThread;
 			Config conf  = vm.getConfig();
 
-			if (insn instanceof InvokeInstruction && insn.isCompleted(ti)) {
-				InvokeInstruction md = (InvokeInstruction) insn;
+			if (insn instanceof JVMInvokeInstruction && insn.isCompleted(ti)) {
+				JVMInvokeInstruction md = (JVMInvokeInstruction) insn;
 				String methodName = md.getInvokedMethodName();
 				int numberOfArgs = md.getArgumentValues(ti).length;
 				MethodInfo mi = md.getInvokedMethod();
@@ -227,7 +233,7 @@ public class SymbolicSequenceListener extends PropertyListenerAdapter implements
 					// nothing to do as there are no choices.
 				}
 			}
-			//else if (insn instanceof ReturnInstruction){
+			//else if (insn instanceof JVMReturnInstruction){
 			// I don't think we need to do anything  here for printing method sequences...
 			//}
 		}
@@ -237,7 +243,7 @@ public class SymbolicSequenceListener extends PropertyListenerAdapter implements
 
 
 	public void stateBacktracked(Search search) {
-		JVM vm = search.getVM();
+		VM vm = search.getVM();
 		Config conf = vm.getConfig();
 
 		Instruction insn = vm.getChoiceGenerator().getInsn();

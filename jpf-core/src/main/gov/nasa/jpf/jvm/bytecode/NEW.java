@@ -18,69 +18,69 @@
 //
 package gov.nasa.jpf.jvm.bytecode;
 
-import gov.nasa.jpf.jvm.AllocInstruction;
-import gov.nasa.jpf.jvm.ClassInfo;
-import gov.nasa.jpf.jvm.Heap;
-import gov.nasa.jpf.jvm.KernelState;
-import gov.nasa.jpf.jvm.NoClassInfoException;
-import gov.nasa.jpf.jvm.SystemState;
-import gov.nasa.jpf.jvm.ThreadInfo;
-import gov.nasa.jpf.jvm.Types;
+import gov.nasa.jpf.vm.bytecode.NewInstruction;
+import gov.nasa.jpf.vm.ClassInfo;
+import gov.nasa.jpf.vm.ElementInfo;
+import gov.nasa.jpf.vm.Heap;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.LoadOnJPFRequired;
+import gov.nasa.jpf.vm.MJIEnv;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.ThreadInfo;
+import gov.nasa.jpf.vm.Types;
 
 
 /**
  * Create new object
  * ... => ..., objectref
  */
-public class NEW extends Instruction implements AllocInstruction {
+public class NEW extends NewInstruction implements JVMInstruction  {
   protected String cname;
-  protected int newObjRef = -1;
+  protected int newObjRef = MJIEnv.NULL;
 
   public NEW (String clsDescriptor){
     cname = Types.getClassNameFromTypeName(clsDescriptor);
   }
   
-  public String getClassName()    // Needed for Java Race Finder
-  {
-     return(cname);
+  public String getClassName(){    // Needed for Java Race Finder
+    return(cname);
   }
 
-  public Instruction execute (SystemState ss, KernelState ks, ThreadInfo ti) {
+  @Override
+  public Instruction execute (ThreadInfo ti) {
     Heap heap = ti.getHeap();
     ClassInfo ci;
 
+    // resolve the referenced class
     try {
-      ci = ClassInfo.getResolvedClassInfo(cname);
-
-    } catch (NoClassInfoException cx){
-      // can be any inherited class or required interface
-      return ti.createAndThrowException("java.lang.NoClassDefFoundError", cx.getMessage());
+      ci = ti.resolveReferencedClass(cname);
+    } catch(LoadOnJPFRequired lre) {
+      return ti.getPC();
     }
 
     if (!ci.isRegistered()){
       ci.registerClass(ti);
     }
 
-    // since this is a NEW, we also have to pushClinit
-    if (!ci.isInitialized()) {
+    // we might have to execute clinits
       if (ci.initializeClass(ti)) {
-        return ti.getPC();  // reexecute this instruction once we return from the clinits
+        // continue with the topframe and re-exec this insn once the clinits are done
+        return ti.getPC();
       }
-    }
 
     if (heap.isOutOfMemory()) { // simulate OutOfMemoryError
       return ti.createAndThrowException("java.lang.OutOfMemoryError",
                                         "trying to allocate new " + cname);
     }
 
-    int objRef = heap.newObject(ci, ti);
+    ElementInfo ei = heap.newObject(ci, ti);
+    int objRef = ei.getObjectRef();
     newObjRef = objRef;
 
     // pushes the return value onto the stack
-    ti.push(objRef, true);
+    StackFrame frame = ti.getModifiableTopFrame();
+    frame.pushRef( objRef);
 
-    ss.checkGC(); // has to happen after we push the new object ref
-    
     return getNext(ti);
   }
 
@@ -92,7 +92,7 @@ public class NEW extends Instruction implements AllocInstruction {
     return 0xBB;
   }
   
-  public void accept(InstructionVisitor insVisitor) {
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
   }
 
@@ -101,7 +101,7 @@ public class NEW extends Instruction implements AllocInstruction {
   }
 
   public String toString() {
-    if (newObjRef != -1){
+    if (newObjRef != MJIEnv.NULL){
       return "new " + cname + '@' + Integer.toHexString(newObjRef);
 
     } else {

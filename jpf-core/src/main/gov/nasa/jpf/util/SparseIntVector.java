@@ -27,7 +27,7 @@ import java.util.Arrays;
  * instead of an array.  Also, does not require allocation with each add.
  * Configurable default value. 
  */
-public class SparseIntVector {
+public class SparseIntVector implements Cloneable {
   private static final boolean DEBUG = false;
   
   static final double MAX_LOAD_WIPE = 0.6;
@@ -35,6 +35,70 @@ public class SparseIntVector {
   static final int DEFAULT_POW = 10;
   static final int DEFAULT_VAL = 0;
 
+  /**
+   * a simplistic snapshot implementation that stores set indices/values in order to save space
+   */
+  public static class Snapshot {
+    private final int length;
+    private final int pow, mask, nextWipe, nextRehash;
+    
+    private final int[] positions;
+    private final int[] indices;
+    private final int[] values;
+    
+    Snapshot (SparseIntVector v){
+      int len = v.idxTable.length;
+      
+      length = len;
+      pow = v.pow;
+      mask = v.mask;
+      nextWipe = v.nextWipe;
+      nextRehash = v.nextRehash;
+      
+      int size = v.count;
+      positions = new int[size];
+      indices = new int[size];
+      values = new int[size];
+      
+      int[] idxTable = v.idxTable;
+      int[] valTable = v.valTable;
+      int j=0;
+      for (int i=0; i<len; i++) {
+        if (idxTable[i] != MIN_VALUE) {
+          positions[j] = i;
+          indices[j] = idxTable[i];
+          values[j] = valTable[i];
+          j++;
+        }
+      }
+    }
+    
+    void restore (SparseIntVector v) {
+      int size = indices.length;
+      
+      v.count = size;
+      v.pow = pow;
+      v.mask = mask;
+      v.nextWipe = nextWipe;
+      v.nextRehash = nextRehash;
+      
+      int len = length;
+      int[] idxTable = new int[len];
+      int[] valTable = new int[len];
+      
+      Arrays.fill(idxTable, MIN_VALUE);
+      
+      for (int i=0; i<size; i++) {
+        int j = positions[i];        
+        idxTable[j] = indices[i];
+        valTable[j] = values[i];
+      }
+      
+      v.idxTable = idxTable;
+      v.valTable = valTable;
+    }
+  }
+  
   int[] idxTable;  // MIN_VALUE => unoccupied
   int[] valTable;  // can be bound to null
   
@@ -45,7 +109,7 @@ public class SparseIntVector {
   int nextRehash;
   
   int defaultValue;
-  
+    
   /**
    * Creates a SimplePool that holds about 716 elements before first
    * rehash.
@@ -91,10 +155,58 @@ public class SparseIntVector {
   
   // ********************* Public API ******************** //
 
+  public Snapshot getSnapshot() {
+    return new Snapshot(this);
+  }
+  
+  public void restore (Snapshot snap) {
+    snap.restore(this);
+  }
+  
+  public SparseIntVector clone() {
+    try {
+      SparseIntVector o = (SparseIntVector) super.clone();
+      o.idxTable = idxTable.clone();
+      o.valTable = valTable.clone();
+      
+      return o;
+      
+    } catch (CloneNotSupportedException cnsx) {
+      // can't happen
+      return null;
+    }
+  }
+  
+  public int size() {
+    return count;
+  }
+  
   public void clear() {
     Arrays.fill(valTable, defaultValue);
     Arrays.fill(idxTable, MIN_VALUE);
     count = 0;
+  }
+  
+  public void clear(int idx) {
+    int code = mix(idx);
+    int pos = code & mask;
+    int delta = (code >> (pow - 1)) | 1; // must be odd!
+    int oidx = pos;
+
+    for(;;) {
+      int tidx = idxTable[pos];
+      if (tidx == MIN_VALUE) {
+        return; // nothing to clear
+      }
+      if (tidx == idx) {
+        count--;
+        idxTable[pos] = MIN_VALUE;
+        valTable[pos] = defaultValue;
+        return;
+      }
+      pos = (pos + delta) & mask;
+      assert (pos != oidx); // should never wrap around
+    }
   }
   
   @SuppressWarnings("unchecked")
@@ -117,6 +229,17 @@ public class SparseIntVector {
     }
   }
 
+  // for debug only
+  int count() {
+    int count = 0;
+    for (int i = 0; i < idxTable.length; i++) {
+      if (idxTable[i] != MIN_VALUE /*&& valTable[i] != defaultValue*/) {
+        count++;
+      }
+    }
+    return count;
+  }
+  
   public void set(int idx, int val) {
     int code = mix(idx);
     int pos = code & mask;
@@ -137,13 +260,18 @@ public class SparseIntVector {
     }
     // idx not in table; add it
     
-    count++;
-    if (count >= nextWipe) { // too full
+    if ((count+1) >= nextWipe) { // too full
+      if (count >= nextRehash) {
+        pow++;
+      }
+      
+      /**
       // determine if size needs to be increased or just wipe null blocks
       int oldCount = count;
       count = 0;
       for (int i = 0; i < idxTable.length; i++) {
-        if (idxTable[i] != MIN_VALUE && valTable[i] != defaultValue) {
+        //if (idxTable[i] != MIN_VALUE && valTable[i] != defaultValue) {
+        if (idxTable[i] != MIN_VALUE) {
           count++;
         }
       }
@@ -157,6 +285,8 @@ public class SparseIntVector {
           System.out.println("Rehash reclaiming this many nulls: " + (oldCount - count));
         }
       }
+      **/
+      
       int[] oldValTable = valTable;
       int[] oldIdxTable = idxTable;
       newTable();
@@ -169,7 +299,7 @@ public class SparseIntVector {
         int tidx = oldIdxTable[i];
         if (tidx == MIN_VALUE) continue;
         int o = oldValTable[i];
-        if (o == defaultValue) continue;
+        //if (o == defaultValue) continue;
         // otherwise:
         code = mix(tidx);
         pos = code & mask;
@@ -187,14 +317,23 @@ public class SparseIntVector {
       while (idxTable[pos] != MIN_VALUE) { // we know enough slots exist
         pos = (pos + delta) & mask;
       }
+            
     } else {
       // pos already pointing to empty slot
     }
+
+    count++;
 
     idxTable[pos] = idx;
     valTable[pos] = val;
   }
   
+  
+  public void setRange (int fromIndex, int toIndex, int val) {
+    for (int i=fromIndex; i<toIndex; i++) {
+      set(i, val);
+    }
+  }
   
   // ************************** Test main ************************ //
   

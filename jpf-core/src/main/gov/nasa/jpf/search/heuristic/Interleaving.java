@@ -19,8 +19,8 @@
 package gov.nasa.jpf.search.heuristic;
 
 import gov.nasa.jpf.Config;
-import gov.nasa.jpf.jvm.JVM;
-import gov.nasa.jpf.jvm.Path;
+import gov.nasa.jpf.vm.VM;
+import gov.nasa.jpf.vm.Path;
 
 
 /**
@@ -33,7 +33,7 @@ public class Interleaving extends SimplePriorityHeuristic {
     
   int historyLimit;
 
-  public Interleaving (Config config, JVM vm) {
+  public Interleaving (Config config, VM vm) {
     super(config,vm);
     
     historyLimit = config.getInt("search.heuristic.thread_history_limit", -1);
@@ -44,7 +44,7 @@ public class Interleaving extends SimplePriorityHeuristic {
    * live threads a certain thread did run
    */
   protected int computeHeuristicValue () {
-    int aliveThreads = vm.getAliveThreadCount();
+    int aliveThreads = vm.getThreadList().getMatchingCount(aliveThread);
 
     Path path = vm.getPath();
     int  pathSize = path.size();

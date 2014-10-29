@@ -20,20 +20,21 @@
 package gov.nasa.jpf.test.vm.basic;
 
 import gov.nasa.jpf.ListenerAdapter;
-import gov.nasa.jpf.jvm.JVM;
-import gov.nasa.jpf.jvm.ThreadInfo;
-import gov.nasa.jpf.jvm.ThreadList;
 import gov.nasa.jpf.search.Search;
+import gov.nasa.jpf.vm.VM;
+import gov.nasa.jpf.vm.ThreadInfo;
+import gov.nasa.jpf.vm.ThreadList;
 
 /**
  * listener that checks SUT and JPF consistency in program end states
  */
 public class EndStateListener extends ListenerAdapter {
 
+  @Override
   public void stateAdvanced (Search search){
     if (search.isEndState()){
 
-      JVM vm = search.getVM();
+      VM vm = search.getVM();
       ThreadList tl = vm.getThreadList();
 
       for (ThreadInfo ti : tl){
@@ -43,7 +44,7 @@ public class EndStateListener extends ListenerAdapter {
         assert ti.isTerminated();
 
         // check if none of the threads still holds a lock
-        assert ti.getLockedObjects().isEmpty();
+        assert !ti.hasLockedObjects();
       }
     }
   }

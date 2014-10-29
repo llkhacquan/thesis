@@ -20,11 +20,11 @@ package gov.nasa.jpf.listener;
 
 import gov.nasa.jpf.Config;
 import gov.nasa.jpf.ListenerAdapter;
-import gov.nasa.jpf.jvm.ChoiceGenerator;
-import gov.nasa.jpf.jvm.JVM;
-import gov.nasa.jpf.jvm.Path;
-import gov.nasa.jpf.jvm.Transition;
 import gov.nasa.jpf.search.Search;
+import gov.nasa.jpf.vm.ChoiceGenerator;
+import gov.nasa.jpf.vm.VM;
+import gov.nasa.jpf.vm.Path;
+import gov.nasa.jpf.vm.Transition;
 
 import java.io.PrintWriter;
 import java.util.Formatter;
@@ -49,6 +49,7 @@ public class StateCountEstimator extends ListenerAdapter
       m_logPeriod = config.getInt("jpf.state_count_estimator.log_period", 0);
    }
 
+   @Override
    public void searchStarted(Search search)
    {
       m_nextLog     = 0;
@@ -56,11 +57,13 @@ public class StateCountEstimator extends ListenerAdapter
       m_startTime   = System.currentTimeMillis();
    }
 
+   @Override
    public void searchFinished(Search search)
    {
       log(search);
    }
 
+   @Override
    public void stateProcessed(Search search)
    {
       if (m_nextLog > System.currentTimeMillis())
@@ -72,7 +75,7 @@ public class StateCountEstimator extends ListenerAdapter
 
    private boolean log(Search search)
    {
-      JVM jvm;
+      VM vm;
       Path path;
       Transition trans;
       ChoiceGenerator cg;
@@ -80,8 +83,8 @@ public class StateCountEstimator extends ListenerAdapter
       long currentState, expectedState, currentTime, expectedTime;
       int i, size, processed;
 
-      jvm       = search.getVM();
-      path      = jvm.getPath();
+      vm       = search.getVM();
+      path      = vm.getPath();
       size      = path.size();
       percent   = 0.0;
       delta     = 1.0;
@@ -104,7 +107,7 @@ public class StateCountEstimator extends ListenerAdapter
       
       m_lastPercent = percent;
          
-      currentState  = jvm.getStateCount();
+      currentState  = vm.getStateCount();
       expectedState = (long) (currentState / percent);
       
       currentTime   = System.currentTimeMillis() - m_startTime;

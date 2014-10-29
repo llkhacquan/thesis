@@ -18,7 +18,7 @@
 //
 package java.io;
 
-import gov.nasa.jpf.jvm.Verify;
+import gov.nasa.jpf.vm.Verify;
 
 import java.nio.charset.Charset;
 import java.nio.charset.CharsetEncoder;
@@ -43,7 +43,7 @@ public class OutputStreamWriter extends Writer {
   
   OutputStream out;
   
-  byte[] buf = new byte[BUF_SIZE];
+  byte[] buf = new byte[BUF_SIZE*6]; // worst case UTF-8 
   
   public OutputStreamWriter(OutputStream os) {
     out = os;
@@ -64,8 +64,8 @@ public class OutputStreamWriter extends Writer {
     throw new UnsupportedOperationException("OutputStreamWriter model does not fully implement this constructor");
   }
   
-  public void close(){
-    // nothing
+  public void close() throws IOException {
+    out.close();
   }
   
   public void flush() {

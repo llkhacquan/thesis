@@ -18,23 +18,32 @@
 //
 package gov.nasa.jpf.jvm.bytecode;
 
-import gov.nasa.jpf.jvm.ThreadInfo;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.ThreadInfo;
 
 
 /**
  * Return int from method
  * ..., value => [empty]
  */
-public class IRETURN extends ReturnInstruction {
+public class IRETURN extends JVMReturnInstruction {
 
   int ret;
   
-  protected void storeReturnValue (ThreadInfo ti) {
+  public int getReturnTypeSize() {
+    return 1;
+  }
+  
+  protected Object getReturnedOperandAttr (StackFrame frame) {
+    return frame.getOperandAttr();
+  }
+  
+  protected void getAndSaveReturnValue (StackFrame ti) {
     ret = ti.pop();
   }
   
-  protected void pushReturnValue (ThreadInfo ti) {
-    ti.push(ret, false);
+  protected void pushReturnValue (StackFrame ti) {
+    ti.push(ret);
   }
   
   public int getReturnValue () {
@@ -43,7 +52,8 @@ public class IRETURN extends ReturnInstruction {
   
   public Object getReturnValue(ThreadInfo ti) {
     if (!isCompleted(ti)) { // we have to pull it from the operand stack
-      ret = ti.peek();
+      StackFrame frame = ti.getTopFrame();
+      ret = frame.peek();
     }
 
     return new Integer(ret);
@@ -57,7 +67,7 @@ public class IRETURN extends ReturnInstruction {
     return "ireturn " + mi.getFullName();
   }
   
-  public void accept(InstructionVisitor insVisitor) {
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
   }
 }

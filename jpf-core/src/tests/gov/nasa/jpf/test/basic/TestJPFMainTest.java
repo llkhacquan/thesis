@@ -18,39 +18,29 @@
 //
 package gov.nasa.jpf.test.basic;
 
-import gov.nasa.jpf.jvm.Verify;
 import gov.nasa.jpf.util.test.TestJPF;
+import gov.nasa.jpf.vm.Verify;
 
 import org.junit.Test;
 
-public class TestJPFMainTest extends TestJPF
-{
-   public static void main(String testMethods[]) throws Throwable
-   {
-      Verify.incrementCounter(0);
-      runTestsOfThisClass(testMethods);
-      Verify.incrementCounter(1);
-   }
+public class TestJPFMainTest extends TestJPF {
+  
+  public static void main(String testMethods[]) throws Throwable {
+    runTestsOfThisClass(testMethods);
+  }
 
-   @Test
-   public void ensureCompatibilityWithRunTestsOfThisClass()
-   {
-      if (!Verify.isRunningInJPF())
-      {
-         Verify.resetCounter(0);
-         Verify.resetCounter(1);
-         Verify.resetCounter(2);
-      }
+  @Test
+  public void ensureCompatibility() {
+    if (!Verify.isRunningInJPF()) {
+      Verify.resetCounter(0);
+    }
+
+    if (verifyNoPropertyViolation()) {
+      System.out.println("incrementing test counter");
+      Verify.incrementCounter(0);
       
-      if (verifyNoPropertyViolation())
-      {
-         Verify.incrementCounter(2);
-      }
-      else  // Runs after JPF finishes
-      {
-         assertEquals(1, Verify.getCounter(0));
-         assertEquals(1, Verify.getCounter(1));
-         assertEquals(1, Verify.getCounter(2));
-      }
-   }
+    } else { // Runs after JPF finishes
+      assertEquals(1, Verify.getCounter(0));
+    }
+  }
 }

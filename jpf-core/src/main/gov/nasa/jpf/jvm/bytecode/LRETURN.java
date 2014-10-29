@@ -18,7 +18,8 @@
 //
 package gov.nasa.jpf.jvm.bytecode;
 
-import gov.nasa.jpf.jvm.ThreadInfo;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.ThreadInfo;
 
 
 /**
@@ -33,7 +34,8 @@ public class LRETURN extends LongReturn {
 
   public Object getReturnValue(ThreadInfo ti) {
     if (!isCompleted(ti)) { // we have to pull it from the operand stack
-      ret = ti.longPeek();
+      StackFrame frame = ti.getTopFrame();      
+      ret = frame.peekLong();
     }
 
     return new Long(ret);
@@ -47,7 +49,7 @@ public class LRETURN extends LongReturn {
     return "lreturn " + mi.getFullName();
   }
 
-  public void accept(InstructionVisitor insVisitor) {
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
   }
 }

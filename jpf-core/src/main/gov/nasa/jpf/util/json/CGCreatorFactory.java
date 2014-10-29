@@ -21,14 +21,14 @@ package gov.nasa.jpf.util.json;
 
 import gov.nasa.jpf.Config;
 import gov.nasa.jpf.JPFException;
-import gov.nasa.jpf.jvm.BooleanChoiceGenerator;
-import gov.nasa.jpf.jvm.ChoiceGenerator;
-import gov.nasa.jpf.jvm.JVM;
-import gov.nasa.jpf.jvm.choice.DoubleChoiceFromList;
-import gov.nasa.jpf.jvm.choice.DoubleThresholdGenerator;
-import gov.nasa.jpf.jvm.choice.IntChoiceFromSet;
-import gov.nasa.jpf.jvm.choice.IntIntervalGenerator;
-import gov.nasa.jpf.jvm.choice.RandomIntIntervalGenerator;
+import gov.nasa.jpf.vm.BooleanChoiceGenerator;
+import gov.nasa.jpf.vm.ChoiceGenerator;
+import gov.nasa.jpf.vm.VM;
+import gov.nasa.jpf.vm.choice.DoubleChoiceFromList;
+import gov.nasa.jpf.vm.choice.DoubleThresholdGenerator;
+import gov.nasa.jpf.vm.choice.IntChoiceFromSet;
+import gov.nasa.jpf.vm.choice.IntIntervalGenerator;
+import gov.nasa.jpf.vm.choice.RandomIntIntervalGenerator;
 
 import java.lang.reflect.Constructor;
 import java.util.HashMap;
@@ -56,7 +56,7 @@ public class CGCreatorFactory {
   }};
 
   private CGCreatorFactory() {
-    Config config = JVM.getVM().getConfig();
+    Config config = VM.getVM().getConfig();
     String[] cgCreators = config.getStringArray("cg-creators");
 
     // If user specified names for additional CG creators, lets add them
@@ -171,7 +171,7 @@ class DoubleThresholdGeneratorCGCreator implements CGCreator {
     if (params.length != 0) {
       throw new JPFException("Double threshold generator requires empty parameters list");
     }
-    Config config = JVM.getVM().getConfig();
+    Config config = VM.getVM().getConfig();
     return new DoubleThresholdGenerator(config, id);
   }
 

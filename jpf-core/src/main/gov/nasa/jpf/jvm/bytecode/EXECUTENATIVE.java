@@ -19,11 +19,11 @@
 
 package gov.nasa.jpf.jvm.bytecode;
 
-import gov.nasa.jpf.jvm.KernelState;
-import gov.nasa.jpf.jvm.MethodInfo;
-import gov.nasa.jpf.jvm.NativeMethodInfo;
-import gov.nasa.jpf.jvm.SystemState;
-import gov.nasa.jpf.jvm.ThreadInfo;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.MethodInfo;
+import gov.nasa.jpf.vm.NativeMethodInfo;
+import gov.nasa.jpf.vm.ThreadInfo;
 
 import java.lang.reflect.Method;
 
@@ -33,7 +33,7 @@ import java.lang.reflect.Method;
  * Note that StackFrame and lock handling has to occur from within
  * the corresponding NativeMethodInfo
  */
-public class EXECUTENATIVE extends Instruction {
+public class EXECUTENATIVE extends Instruction implements JVMInstruction {
 
   // unfortunately we can't null this in cleanupTransients(), but it is
   // a potential leak for stored traces
@@ -59,15 +59,14 @@ public class EXECUTENATIVE extends Instruction {
     executedMethod = mi;
   }
 
-  public void accept(InstructionVisitor insVisitor) {
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
   }
 
-  public Instruction execute(SystemState ss, KernelState ks, ThreadInfo ti) {
+  public Instruction execute (ThreadInfo ti) {
 
     // we don't have to enter/leave or push/pop a frame, that's all done
     // in NativeMethodInfo.execute()
-
     // !! don't re-enter if this is reexecuted !!
     return executedMethod.executeNative(ti);
   }

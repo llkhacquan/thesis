@@ -19,7 +19,9 @@
 package gov.nasa.jpf.search.heuristic;
 
 import gov.nasa.jpf.Config;
-import gov.nasa.jpf.jvm.JVM;
+import gov.nasa.jpf.util.Predicate;
+import gov.nasa.jpf.vm.ThreadInfo;
+import gov.nasa.jpf.vm.VM;
 
 /**
  * a heuristic that is based on static priorities that are determined
@@ -29,15 +31,24 @@ public abstract class SimplePriorityHeuristic extends HeuristicSearch {
 
   StaticPriorityQueue queue;
   
-  public SimplePriorityHeuristic (Config config, JVM vm) {
+  protected Predicate<ThreadInfo> aliveThread;
+  
+  public SimplePriorityHeuristic (Config config, VM vm) {
     super(config,vm);
 
-    queue = new StaticPriorityQueue(config);    
+    queue = new StaticPriorityQueue(config);
+    
+    aliveThread = new Predicate<ThreadInfo>() {
+      public boolean isTrue (ThreadInfo ti) {
+        return (ti.isAlive());
+      }
+    };
+    
   }
 
   protected abstract int computeHeuristicValue ();
 
-  protected int computeAstarPathCost (JVM vm) {
+  protected int computeAstarPathCost (VM vm) {
     return vm.getPathLength();
   }
   

@@ -16,7 +16,9 @@
 // DOCUMENTATION, IF PROVIDED, WILL CONFORM TO THE SUBJECT SOFTWARE.
 //
 package gov.nasa.jpf.symbc.sequences;
-import gov.nasa.jpf.jvm.choice.IntIntervalGenerator;
+
+import gov.nasa.jpf.vm.ChoiceGenerator;
+
 
 
 /**
@@ -31,12 +33,18 @@ import gov.nasa.jpf.jvm.choice.IntIntervalGenerator;
 // it will not make any choices, but it will force JPF to remember this info on the current path
 // so that it is easy to reconstruct and print it
 // then we will not really need any more maps to print the information
-public class SequenceChoiceGenerator extends IntIntervalGenerator {
+public class SequenceChoiceGenerator extends gov.nasa.jpf.vm.choice.IntIntervalGenerator {
 
   private String methodShortName;
   private Object [] argValues;
   private Object [] attributes;
-
+  
+  @Override
+  public ChoiceGenerator randomize() {
+      // This doesn't make choices anyway, no need to change.
+      return this;
+  }
+  
   // will always make only one choice
 @SuppressWarnings("deprecation")
 public SequenceChoiceGenerator(String _methodShortName) {

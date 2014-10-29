@@ -19,16 +19,16 @@
 package gov.nasa.jpf.test.mc.basic;
 
 import gov.nasa.jpf.ListenerAdapter;
-import gov.nasa.jpf.jvm.ChoiceGenerator;
-import gov.nasa.jpf.jvm.FieldInfo;
-import gov.nasa.jpf.jvm.JVM;
-import gov.nasa.jpf.jvm.SystemState;
-import gov.nasa.jpf.jvm.ThreadInfo;
-import gov.nasa.jpf.jvm.Verify;
-import gov.nasa.jpf.jvm.bytecode.Instruction;
-import gov.nasa.jpf.jvm.bytecode.InvokeInstruction;
+import gov.nasa.jpf.jvm.bytecode.JVMInvokeInstruction;
 import gov.nasa.jpf.jvm.bytecode.PUTFIELD;
 import gov.nasa.jpf.util.test.TestJPF;
+import gov.nasa.jpf.vm.ChoiceGenerator;
+import gov.nasa.jpf.vm.FieldInfo;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.VM;
+import gov.nasa.jpf.vm.SystemState;
+import gov.nasa.jpf.vm.ThreadInfo;
+import gov.nasa.jpf.vm.Verify;
 
 import org.junit.Test;
 
@@ -47,13 +47,15 @@ public class BreakTest extends TestJPF {
       nCG = 0;
     }
 
-    public void choiceGeneratorSet (JVM vm) {
-      System.out.println("CG set: " + vm.getLastChoiceGenerator());
+    @Override
+    public void choiceGeneratorSet (VM vm, ChoiceGenerator<?> newCG) {
+      System.out.println("CG set: " + newCG);
       nCG++;
     }
 
-    public void choiceGeneratorAdvanced (JVM vm) {
-      System.out.println("CG advanced: " + vm.getLastChoiceGenerator());
+    @Override
+    public void choiceGeneratorAdvanced (VM vm, ChoiceGenerator<?> currentCG) {
+      System.out.println("CG advanced: " + currentCG);
     }
   }
 
@@ -63,15 +65,13 @@ public class BreakTest extends TestJPF {
   //--- test setIgnored
 
   public static class FieldIgnorer extends BreakListener {
-    public void instructionExecuted(JVM vm) {
-      Instruction insn = vm.getLastInstruction();
-      ThreadInfo ti = vm.getLastThreadInfo();
+    public void instructionExecuted(VM vm, ThreadInfo ti, Instruction nextInsn, Instruction executedInsn) {
       SystemState ss = vm.getSystemState();
 
-      if (insn instanceof PUTFIELD) {  // break on field access
-        FieldInfo fi = ((PUTFIELD) insn).getFieldInfo();
+      if (executedInsn instanceof PUTFIELD) {  // break on field access
+        FieldInfo fi = ((PUTFIELD) executedInsn).getFieldInfo();
         if (fi.getClassInfo().getName().endsWith(".BreakTest")) {
-          System.out.println("# ignoring after: " + insn);
+          System.out.println("# ignoring after: " + executedInsn);
           ss.setIgnored(true);
         }
       }
@@ -97,16 +97,14 @@ public class BreakTest extends TestJPF {
   //--- testSimpleBreak
 
   public static class FieldBreaker extends BreakListener {
-    public void instructionExecuted(JVM vm) {
-      Instruction insn = vm.getLastInstruction();
-      ThreadInfo ti = vm.getLastThreadInfo();
+    public void instructionExecuted(VM vm, ThreadInfo ti, Instruction nextInsn, Instruction executedInsn) {
       SystemState ss = vm.getSystemState();
 
-      if (insn instanceof PUTFIELD) {  // break on field access
-        FieldInfo fi = ((PUTFIELD) insn).getFieldInfo();
+      if (executedInsn instanceof PUTFIELD) {  // break on field access
+        FieldInfo fi = ((PUTFIELD) executedInsn).getFieldInfo();
         if (fi.getClassInfo().getName().endsWith(".BreakTest")) {
-          System.out.println("# breaking after: " + insn);
-          ti.breakTransition();
+          System.out.println("# breaking after: " + executedInsn);
+          ti.breakTransition("breakTest");
         }
       }
     }
@@ -131,18 +129,16 @@ public class BreakTest extends TestJPF {
   //--- test CG chain break
 
   public static class FooCallBreaker extends BreakListener {
-    public void instructionExecuted(JVM vm) {
-      Instruction insn = vm.getLastInstruction();
-      ThreadInfo ti = vm.getLastThreadInfo();
+    public void instructionExecuted(VM vm, ThreadInfo ti, Instruction nextInsn, Instruction executedInsn) {
       SystemState ss = vm.getSystemState();
 
-      if (insn instanceof InvokeInstruction) { // break on method call
-        InvokeInstruction call = (InvokeInstruction) insn;
+      if (executedInsn instanceof JVMInvokeInstruction) { // break on method call
+        JVMInvokeInstruction call = (JVMInvokeInstruction) executedInsn;
 
         if ("foo()V".equals(call.getInvokedMethodName())) {
-          System.out.println("# breaking & pruning after: " + insn);
-          System.out.println("# registered (ignored) CG: " + vm.getSystemState().getNextChoiceGenerator());
-          ti.breakTransition(); // not required since we ignore
+          System.out.println("# breaking & pruning after: " + executedInsn);
+          System.out.println("# registered (ignored) CG: " + ss.getNextChoiceGenerator());
+          ti.breakTransition("breakTest"); // not required since we ignore
           ss.setIgnored(true);
         }
       }
@@ -189,8 +185,7 @@ public class BreakTest extends TestJPF {
   //--- test ignore after setting nextCG
 
   public static class VerifyNextIntBreaker extends BreakListener {
-    public void choiceGeneratorRegistered(JVM vm) {
-      ThreadInfo ti = vm.getLastThreadInfo();
+    public void choiceGeneratorRegistered(VM vm, ChoiceGenerator<?> nextCG, ThreadInfo ti, Instruction executedInsn) {
       SystemState ss = vm.getSystemState();
       
       ChoiceGenerator<?> cg = ss.getNextChoiceGenerator();
@@ -199,7 +194,7 @@ public class BreakTest extends TestJPF {
         System.out.println("# registered (ignored) CG: " + cg);
 
         ss.setIgnored(true); // should reset the IntIntervalCG registered by the native getInt()
-        ti.breakTransition(); // should have no effect
+        ti.breakTransition("breakTest"); // should have no effect
       }
     }
   }

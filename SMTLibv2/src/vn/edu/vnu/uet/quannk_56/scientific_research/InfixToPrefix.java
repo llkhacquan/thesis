@@ -5,23 +5,26 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Vector;
 
 public class InfixToPrefix implements InfixToPrefixConstants {
-  public static String InfixToPrefix(String input)
+  public static String InfixToPrefix(String input, Vector<String > symbols)
   {
     InputStream stream = new ByteArrayInputStream(input.getBytes(StandardCharsets.UTF_8));
     InfixToPrefix parser = new InfixToPrefix(stream);
+    parser.symbols = symbols;
     try
     {
       return parser.Expression();
     }
     catch (ParseException e)
     {
-      // TODO Auto-generated catch block
       e.printStackTrace();
     }
     return "";
   }
+
+  private Vector < String > symbols = new Vector < String > ();
 
   public static void main(String args [])
   {
@@ -71,7 +74,8 @@ public class InfixToPrefix implements InfixToPrefixConstants {
       s1 = Term();
       s2 = Operator();
       s3 = Term();
-      result = s2 + " " + s1 + " " + s3;
+      if (s2 == "!=") result = "not ( = " + s1 + " " + s3 + " )";
+      else {if (true) return s2 + " " + s1 + " " + s3;}
     } else {
       switch ((jj_ntk==-1)?jj_ntk():jj_ntk) {
       case LPAREN:
@@ -96,14 +100,17 @@ public class InfixToPrefix implements InfixToPrefixConstants {
     switch ((jj_ntk==-1)?jj_ntk():jj_ntk) {
     case Var:
       t = jj_consume_token(Var);
+      symbols.add(t.image);
       result = t.image;
       break;
     case Const:
       t = jj_consume_token(Const);
+      symbols.add(t.image);
       result = t.image;
       break;
     case Number:
       t = jj_consume_token(Number);
+      symbols.add(t.image);
       result = t.image;
       break;
     case LPAREN:
@@ -180,6 +187,9 @@ public class InfixToPrefix implements InfixToPrefixConstants {
     case LSHIFT:
       jj_consume_token(LSHIFT);
       break;
+    case IMPLICATION:
+      jj_consume_token(IMPLICATION);
+      break;
     default:
       jj_la1[2] = jj_gen;
       jj_consume_token(-1);
@@ -196,18 +206,48 @@ public class InfixToPrefix implements InfixToPrefixConstants {
     finally { jj_save(0, xla); }
   }
 
-  private boolean jj_3R_7() {
+  private boolean jj_3R_1() {
     Token xsp;
     xsp = jj_scanpos;
-    if (jj_3_1()) {
+    if (jj_3R_3()) {
     jj_scanpos = xsp;
-    if (jj_3R_8()) return true;
+    if (jj_3R_4()) {
+    jj_scanpos = xsp;
+    if (jj_3R_5()) {
+    jj_scanpos = xsp;
+    if (jj_3R_6()) return true;
+    }
+    }
     }
     return false;
   }
 
-  private boolean jj_3R_3() {
-    if (jj_scan_token(Var)) return true;
+  private boolean jj_3R_6() {
+    if (jj_scan_token(LPAREN)) return true;
+    if (jj_3R_7()) return true;
+    if (jj_scan_token(RPAREN)) return true;
+    return false;
+  }
+
+  private boolean jj_3R_5() {
+    if (jj_scan_token(Number)) return true;
+    return false;
+  }
+
+  private boolean jj_3R_8() {
+    if (jj_3R_1()) return true;
+    return false;
+  }
+
+  private boolean jj_3R_4() {
+    if (jj_scan_token(Const)) return true;
+    return false;
+  }
+
+  private boolean jj_3_1() {
+    if (jj_3R_1()) return true;
+    if (jj_3R_2()) return true;
+    if (jj_3R_1()) return true;
     return false;
   }
 
@@ -250,7 +290,10 @@ public class InfixToPrefix implements InfixToPrefixConstants {
     jj_scanpos = xsp;
     if (jj_scan_token(25)) {
     jj_scanpos = xsp;
-    if (jj_scan_token(26)) return true;
+    if (jj_scan_token(26)) {
+    jj_scanpos = xsp;
+    if (jj_scan_token(27)) return true;
+    }
     }
     }
     }
@@ -272,48 +315,18 @@ public class InfixToPrefix implements InfixToPrefixConstants {
     return false;
   }
 
-  private boolean jj_3R_1() {
+  private boolean jj_3R_7() {
     Token xsp;
     xsp = jj_scanpos;
-    if (jj_3R_3()) {
+    if (jj_3_1()) {
     jj_scanpos = xsp;
-    if (jj_3R_4()) {
-    jj_scanpos = xsp;
-    if (jj_3R_5()) {
-    jj_scanpos = xsp;
-    if (jj_3R_6()) return true;
-    }
-    }
+    if (jj_3R_8()) return true;
     }
     return false;
   }
 
-  private boolean jj_3R_6() {
-    if (jj_scan_token(LPAREN)) return true;
-    if (jj_3R_7()) return true;
-    if (jj_scan_token(RPAREN)) return true;
-    return false;
-  }
-
-  private boolean jj_3R_8() {
-    if (jj_3R_1()) return true;
-    return false;
-  }
-
-  private boolean jj_3R_5() {
-    if (jj_scan_token(Number)) return true;
-    return false;
-  }
-
-  private boolean jj_3_1() {
-    if (jj_3R_1()) return true;
-    if (jj_3R_2()) return true;
-    if (jj_3R_1()) return true;
-    return false;
-  }
-
-  private boolean jj_3R_4() {
-    if (jj_scan_token(Const)) return true;
+  private boolean jj_3R_3() {
+    if (jj_scan_token(Var)) return true;
     return false;
   }
 
@@ -334,7 +347,7 @@ public class InfixToPrefix implements InfixToPrefixConstants {
       jj_la1_init_0();
    }
    private static void jj_la1_init_0() {
-      jj_la1_0 = new int[] {0x38000040,0x38000040,0x7ffff00,};
+      jj_la1_0 = new int[] {0x70000040,0x70000040,0xfffff00,};
    }
   final private JJCalls[] jj_2_rtns = new JJCalls[1];
   private boolean jj_rescan = false;
@@ -520,7 +533,7 @@ public class InfixToPrefix implements InfixToPrefixConstants {
   /** Generate ParseException. */
   public ParseException generateParseException() {
     jj_expentries.clear();
-    boolean[] la1tokens = new boolean[30];
+    boolean[] la1tokens = new boolean[31];
     if (jj_kind >= 0) {
       la1tokens[jj_kind] = true;
       jj_kind = -1;
@@ -534,7 +547,7 @@ public class InfixToPrefix implements InfixToPrefixConstants {
         }
       }
     }
-    for (int i = 0; i < 30; i++) {
+    for (int i = 0; i < 31; i++) {
       if (la1tokens[i]) {
         jj_expentry = new int[1];
         jj_expentry[0] = i;

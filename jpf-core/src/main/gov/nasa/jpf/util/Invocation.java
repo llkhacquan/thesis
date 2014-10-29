@@ -19,11 +19,12 @@
 
 package gov.nasa.jpf.util;
 
-import gov.nasa.jpf.jvm.ClassInfo;
-import gov.nasa.jpf.jvm.ElementInfo;
-import gov.nasa.jpf.jvm.JVM;
-import gov.nasa.jpf.jvm.MethodInfo;
-import gov.nasa.jpf.jvm.ObjRef;
+import gov.nasa.jpf.vm.ClassInfo;
+import gov.nasa.jpf.vm.ElementInfo;
+import gov.nasa.jpf.vm.MJIEnv;
+import gov.nasa.jpf.vm.VM;
+import gov.nasa.jpf.vm.MethodInfo;
+import gov.nasa.jpf.vm.ObjRef;
 
 /**
  * a record that includes all information to perform a call
@@ -72,8 +73,8 @@ public class Invocation {
     if (cls == ObjRef.class) {
       int ref = ((ObjRef)a).getReference();
       
-      if (ref != -1){
-        ElementInfo ei = JVM.getVM().getElementInfo(ref);
+      if (ref != MJIEnv.NULL){
+        ElementInfo ei = VM.getVM().getElementInfo(ref);
         ClassInfo ci = ei.getClassInfo();
         String cname = ci.getName();
         if (cname.equals("java.lang.String")){

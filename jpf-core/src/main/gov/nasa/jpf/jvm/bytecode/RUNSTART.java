@@ -19,10 +19,9 @@
 
 package gov.nasa.jpf.jvm.bytecode;
 
-import gov.nasa.jpf.jvm.KernelState;
-import gov.nasa.jpf.jvm.MethodInfo;
-import gov.nasa.jpf.jvm.SystemState;
-import gov.nasa.jpf.jvm.ThreadInfo;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.Instruction;
+import gov.nasa.jpf.vm.ThreadInfo;
 
 /**
  * this is an artificial instruction that is automatically prepended to
@@ -37,19 +36,15 @@ import gov.nasa.jpf.jvm.ThreadInfo;
  * just happens to be the first transition we execute within this thread
  * 
  */
-public class RUNSTART extends Instruction {
+public class RUNSTART extends Instruction implements JVMInstruction {
 
-  public RUNSTART (MethodInfo runMth) {
-    this.mi = runMth;
-    this.insnIndex = -1;
-    this.position = -1;
+  public RUNSTART () {
   }
 
-  public Instruction execute (SystemState ss, KernelState ks, ThreadInfo ti) {
-    // this insn is never stored in any MethodInfo
-    return mi.getInstruction(0);
+  public Instruction execute (ThreadInfo ti) {
+    // nothing here, we could have used a NOP
+    return getNext(ti);
   }
-
 
   public static final int OPCODE = 257;
 
@@ -61,8 +56,7 @@ public class RUNSTART extends Instruction {
     return true;
   }
 
-  public void accept(InstructionVisitor insVisitor) {
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
   }
-
 }

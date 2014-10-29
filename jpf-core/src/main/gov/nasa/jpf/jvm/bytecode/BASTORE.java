@@ -18,12 +18,13 @@
 //
 package gov.nasa.jpf.jvm.bytecode;
 
-import gov.nasa.jpf.jvm.ArrayIndexOutOfBoundsExecutiveException;
-import gov.nasa.jpf.jvm.BooleanArrayFields;
-import gov.nasa.jpf.jvm.ByteArrayFields;
-import gov.nasa.jpf.jvm.ElementInfo;
-import gov.nasa.jpf.jvm.Fields;
-import gov.nasa.jpf.jvm.ThreadInfo;
+import gov.nasa.jpf.vm.ArrayIndexOutOfBoundsExecutiveException;
+import gov.nasa.jpf.vm.BooleanArrayFields;
+import gov.nasa.jpf.vm.ByteArrayFields;
+import gov.nasa.jpf.vm.ElementInfo;
+import gov.nasa.jpf.vm.Fields;
+import gov.nasa.jpf.vm.StackFrame;
+import gov.nasa.jpf.vm.ThreadInfo;
 
 /**
  * Store into byte or boolean array
@@ -33,8 +34,8 @@ public class BASTORE extends ArrayStoreInstruction {
 
   byte value;
 
-  protected void popValue(ThreadInfo ti){
-    value = (byte)ti.pop();
+  protected void popValue(StackFrame frame){
+    value = (byte)frame.pop();
   }
 
   protected void setField (ElementInfo ei, int index) throws ArrayIndexOutOfBoundsExecutiveException {
@@ -55,7 +56,7 @@ public class BASTORE extends ArrayStoreInstruction {
     return 0x54;
   }
   
-  public void accept(InstructionVisitor insVisitor) {
+  public void accept(JVMInstructionVisitor insVisitor) {
 	  insVisitor.visit(this);
   }
   

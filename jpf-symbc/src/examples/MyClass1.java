@@ -18,6 +18,6 @@ public class MyClass1 {
 	public static void main(String[] args) {
 		MyClass1 mc = new MyClass1();
 		int x = mc.myMethod(1, 2);
-		Debug.printPC("\nMyClass1.myMethod Path Condition: ");
+		Debug.printPC("Test");
 	}
 }
