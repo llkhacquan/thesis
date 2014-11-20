@@ -22,23 +22,12 @@ package gov.nasa.jpf.util;
 import gov.nasa.jpf.SystemAttribute;
 
 /**
- * a generic SystemAttribute that can be used to store instruction
+ * a abstract SystemAttribute that can be used to store instruction
  * execution state between top and bottom halves of respective instruction.execute() methods
  */
-public class InstructionState<T> implements SystemAttribute {
-  static InstructionState processed = new InstructionState(null); // no need to burn lots of objects if we don't have state
+public abstract class InstructionState implements SystemAttribute {
+  static class Processed extends InstructionState {}
+  public static final Processed processed = new Processed(); // no need to burn lots of objects if we don't have state
   
-  public static InstructionState getProcessedState(){
-    return processed;
-  }
   
-  protected T state;
-  
-  public InstructionState (T state){
-    this.state = state;
-  }
-  
-  public T getState(){
-    return state;
-  }
 }

@@ -2,11 +2,11 @@ package demo;
 
 import gov.nasa.jpf.symbc.Debug;
 
-public class NumericExample {
+public class Test1 {
 
 	public static void test(double a, double b) {
 		double c;
-		c = Debug.makeSymbolicReal("c");
+		//c = Debug.makeSymbolicReal("c");
 		c = a * b;
 		if (a > b) {
 			c = a - b;

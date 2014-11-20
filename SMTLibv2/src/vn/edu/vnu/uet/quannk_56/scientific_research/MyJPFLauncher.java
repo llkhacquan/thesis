@@ -10,7 +10,7 @@ public class MyJPFLauncher {
 	public static void main(String[] args) {
 		SortedSet<String> codes = new TreeSet<String>();
 		String fileJPF;
-		fileJPF = "../jpf-symbc/src/examples/demo/NumericExample.jpf";
+		fileJPF = "../jpf-symbc/src/examples/demo/Test3.jpf";
 		String jpfOutput = runJPFSymbc(fileJPF);
 		System.out.println(jpfOutput);
 		Vector<String> v_Contraints = getContraints(jpfOutput, "PrePC",
@@ -66,7 +66,7 @@ public class MyJPFLauncher {
 				for (int t = iLine + 1; t < j; t++) {
 					s += lines[t] + "\n";
 				}
-				// System.out.println(s);
+				
 				iLine = j;
 				result.add(s);
 			}

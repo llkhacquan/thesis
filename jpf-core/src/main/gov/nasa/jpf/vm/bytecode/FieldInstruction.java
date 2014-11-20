@@ -19,12 +19,10 @@
 
 package gov.nasa.jpf.vm.bytecode;
 
-import gov.nasa.jpf.SystemAttribute;
 import gov.nasa.jpf.vm.ElementInfo;
 import gov.nasa.jpf.vm.FieldInfo;
 import gov.nasa.jpf.vm.ThreadInfo;
 import gov.nasa.jpf.vm.Instruction;
-import gov.nasa.jpf.vm.StackFrame;
 import gov.nasa.jpf.vm.Types;
 
 /**
@@ -33,6 +31,7 @@ import gov.nasa.jpf.vm.Types;
 public abstract class FieldInstruction extends Instruction implements ReadOrWriteInstruction {
 
   protected String fname;
+  protected String ftype;
   protected String className;
   protected String varId;
 
@@ -45,6 +44,7 @@ public abstract class FieldInstruction extends Instruction implements ReadOrWrit
 
   protected FieldInstruction (String name, String clsName, String fieldDescriptor){
     fname = name;
+    ftype = fieldDescriptor;
     className = Types.getClassNameFromTypeName(clsName);
     isReferenceField = Types.isReferenceSignature(fieldDescriptor);
     size = Types.getTypeSize(fieldDescriptor);
