@@ -1,0 +1,9 @@
+target=demo.Test1
+classpath=bin
+sourcepath=src
+symbolic.method = demo.Test1.test(sym#sym)
+
+#symbolic.dp=coral
+#listener = .symbc.SymbolicListener
+
+#search.multiple_errors=true
