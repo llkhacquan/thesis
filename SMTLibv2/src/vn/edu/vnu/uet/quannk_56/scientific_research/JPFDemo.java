@@ -10,7 +10,7 @@ public class JPFDemo {
 	public static void main(String[] args) {
 		SortedSet<String> codes = new TreeSet<String>();
 		String fileJPF;
-		fileJPF = "src/demo/Test1.jpf";
+		fileJPF = "src/demo/Test2.jpf";
 		String jpfOutput = runJPFSymbc(fileJPF);
 		System.out.println(jpfOutput);
 		

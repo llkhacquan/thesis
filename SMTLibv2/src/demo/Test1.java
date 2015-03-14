@@ -19,6 +19,7 @@ public class Test1 {
 
 		Debug.printPC("-------------PrePC----------\n");
 		System.out.println("=>");
+		
 		System.out.println("z_SYMREAL == " + Debug.getSymbolicRealValue(z));
 		System.out.println("x_SYMREAL == " + Debug.getSymbolicRealValue(x));
 		System.out.println("y_SYMREAL == " + Debug.getSymbolicRealValue(y));

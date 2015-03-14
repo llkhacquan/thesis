@@ -4,6 +4,7 @@ sourcepath=src
 symbolic.method = demo.Test1.test(sym#sym)
 
 #symbolic.dp=coral
-#listener = .symbc.SymbolicListener
+listener = .symbc.SymbolicListener
+listener = gov.nasa.jpf.listener.PathOutputMonitor
 
 #search.multiple_errors=true
