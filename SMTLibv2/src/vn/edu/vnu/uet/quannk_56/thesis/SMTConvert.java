@@ -1,4 +1,4 @@
-package vn.edu.vnu.uet.quannk_56.scientific_research;
+package vn.edu.vnu.uet.quannk_56.thesis;
 
 public class SMTConvert {
 	/**

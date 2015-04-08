@@ -11,6 +11,7 @@
 	<classpathentry kind="lib" path="lib/jpf.jar"/>
 	<classpathentry kind="lib" path="lib/RunJPF.jar"/>
 	<classpathentry kind="lib" path="lib/RunTest.jar"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/jpf-core"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/jpf-symbc"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
