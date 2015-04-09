@@ -16,19 +16,31 @@ public class JPFDemo {
 		String fileJPF;
 		fileJPF = "src/demo/test.jpf";
 		String jpfOutput = runJPFSymbc(fileJPF);
-//		System.out.println(jpfOutput);
-//		System.out.println("==================================");
+
+		Vector<PathConstraint> paths = printPathsContrains(jpfOutput);
+
+		printPathCoverageContraint(paths);
+
+		// printDeclares(paths);
+	}
+
+	private static void printPathCoverageContraint(Vector<PathConstraint> paths) {
+		CNFClause errorCheckingCondition = getErrorCheckingCondition(paths);
+		System.out.println("\terrorCheckingCondition: if this is SAT, there is error!");
+		System.out.println(errorCheckingCondition);
+	}
+
+	private static Vector<PathConstraint> printPathsContrains(String jpfOutput) {
 		Vector<PathConstraint> paths = extractPathConditions(jpfOutput);
 
 		System.out.println("\tLogic function of source code");
 		for (PathConstraint path : paths) {
 			System.out.println(path);
 		}
+		return paths;
+	}
 
-		CNFClause errorCheckingCondition = getErrorCheckingCondition(paths);
-		System.out.println("\terrorCheckingCondition: if this is SAT, there is error!");
-		System.out.println(errorCheckingCondition);
-
+	private static void printDeclares(Vector<PathConstraint> paths) {
 		Set<Term> terms = new HashSet<Term>();
 		for (PathConstraint path : paths) {
 			terms.addAll(path.getTerms());

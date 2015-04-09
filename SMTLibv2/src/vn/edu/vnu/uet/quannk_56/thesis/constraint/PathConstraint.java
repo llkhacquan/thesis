@@ -13,7 +13,8 @@ public class PathConstraint implements IConstraint {
 	}
 
 	public String toString() {
-		return preConditions.toString() + " => " + postConditions.toString();
+		return "(" + preConditions.toString() + ") => ("
+				+ postConditions.toString() + ")";
 	}
 
 	@Override
