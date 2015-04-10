@@ -4,6 +4,8 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.Vector;
 
+import vn.edu.vnu.uet.quannk_56.thesis.convert.InfixToPrefix;
+
 public class CNFClause implements IConstraint {
 	public Vector<Clause> clauses = new Vector<Clause>();
 
@@ -32,5 +34,10 @@ public class CNFClause implements IConstraint {
 			result.addAll(clause.getTerms());
 		}
 		return result;
+	}
+
+	@Override
+	public String convertToPrefix() {
+		return InfixToPrefix.parse(toString());
 	}
 }

@@ -8,8 +8,10 @@ import java.util.Vector;
 
 import vn.edu.vnu.uet.quannk_56.thesis.constraint.CNFClause;
 import vn.edu.vnu.uet.quannk_56.thesis.constraint.Clause;
+import vn.edu.vnu.uet.quannk_56.thesis.constraint.IConstraint;
 import vn.edu.vnu.uet.quannk_56.thesis.constraint.PathConstraint;
 import vn.edu.vnu.uet.quannk_56.thesis.constraint.Term;
+import vn.edu.vnu.uet.quannk_56.thesis.convert.InfixToPrefix;
 
 public class JPFDemo {
 	public static void main(String[] args) {
@@ -21,13 +23,15 @@ public class JPFDemo {
 
 		printPathCoverageContraint(paths);
 
-		// printDeclares(paths);
+		printDeclares(paths);
 	}
 
 	private static void printPathCoverageContraint(Vector<PathConstraint> paths) {
 		CNFClause errorCheckingCondition = getErrorCheckingCondition(paths);
 		System.out.println("\terrorCheckingCondition: if this is SAT, there is error!");
 		System.out.println(errorCheckingCondition);
+		
+		System.out.println(InfixToPrefix.parse(errorCheckingCondition.toString()));
 	}
 
 	private static Vector<PathConstraint> printPathsContrains(String jpfOutput) {
@@ -40,7 +44,7 @@ public class JPFDemo {
 		return paths;
 	}
 
-	private static void printDeclares(Vector<PathConstraint> paths) {
+	public static void printDeclares(Vector<PathConstraint> paths) {
 		Set<Term> terms = new HashSet<Term>();
 		for (PathConstraint path : paths) {
 			terms.addAll(path.getTerms());
@@ -48,6 +52,15 @@ public class JPFDemo {
 		for (Term term:terms){
 			System.out.println(term.getSMTDeclare());
 		}
+	}
+	
+	public static Vector<String> printDeclares(IConstraint contraints){
+		Set<Term> terms = contraints.getTerms();
+		Vector<String> result = new Vector<String>();
+		for (Term t:terms){
+			result.add(t.getSMTDeclare());
+		}
+		return result;
 	}
 
 	public static CNFClause getErrorCheckingCondition(Vector<PathConstraint> paths) {

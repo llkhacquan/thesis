@@ -3,6 +3,8 @@ package vn.edu.vnu.uet.quannk_56.thesis.constraint;
 import java.util.HashSet;
 import java.util.Set;
 
+import vn.edu.vnu.uet.quannk_56.thesis.convert.InfixToPrefix;
+
 public class PathConstraint implements IConstraint {
 	public CNFClause preConditions;
 	public CNFClause postConditions;
@@ -23,5 +25,10 @@ public class PathConstraint implements IConstraint {
 		result.addAll(preConditions.getTerms());
 		result.addAll(postConditions.getTerms());
 		return result;
+	}
+
+	@Override
+	public String convertToPrefix() {
+		return InfixToPrefix.parse(toString());
 	}
 }

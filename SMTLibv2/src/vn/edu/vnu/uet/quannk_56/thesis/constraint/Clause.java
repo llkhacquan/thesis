@@ -6,6 +6,8 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.Vector;
 
+import vn.edu.vnu.uet.quannk_56.thesis.convert.InfixToPrefix;
+
 // Each term in clause must begin with CHECKIN_PREFIX or CHECKOUT_PREFIX
 // Identifiers must be composed of letters, numbers, the underscore _ and the dollar sign $. 
 // Identifiers may only begin with a letter, the underscore or a dollar sign.
@@ -60,5 +62,10 @@ public class Clause implements IConstraint{
 		String trimmedClause = clause.replaceAll(CHECKIN_PREFIX, "")
 				.replaceAll(CHECKOUT_PREFIX, "");
 		return trimmedClause;
+	}
+
+	@Override
+	public String convertToPrefix() {
+		return InfixToPrefix.parse(clause);
 	}
 }
