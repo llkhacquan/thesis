@@ -1,0 +1,5 @@
+target=UserTest
+classpath=resources
+sourcepath=resources
+search.multiple_errors=true
+symbolic.dp=coral

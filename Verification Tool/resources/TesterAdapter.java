@@ -1,8 +1,6 @@
-package demo;
-
 import gov.nasa.jpf.symbc.Debug;
 
-public class Tester {
+public class TesterAdapter {
   static final public String CHECKIN_PREFIX = "CHECK_I_._";
   static final public String CHECKIN_PREFIX_I = "CHECK_I_I_";
   static final public String CHECKIN_PREFIX_R = "CHECK_I_R_";

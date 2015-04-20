@@ -1,5 +1,0 @@
-target=demo.Tester
-classpath=bin
-sourcepath=src
-search.multiple_errors=true
-symbolic.dp=coral
