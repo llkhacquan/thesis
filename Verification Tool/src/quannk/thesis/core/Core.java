@@ -22,15 +22,17 @@ import org.apache.commons.io.FileUtils;
 
 import quannk.thesis.constraint.CNFClause;
 import quannk.thesis.constraint.PathConstraint;
+import quannk.thesis.convert.InfixToPrefix;
 import quannk.thesis.core.TestMethod.Parameter;
+import quannk.thesis.core.Z3Output.Declare;
 
 public class Core {
   public Path workingDirPath;
   public File inputFile;
   public JavaCompiler compiler;
-  public String jpfOutput;
-  public JPFOutputProcesser jpfOutputProcessor;
+  public JPFOutput jpfOutput;
   public TestMethod method;
+  public Z3Output z3Output;
 
   public Core() throws Exception {
     getSystemCompiler();
@@ -44,30 +46,104 @@ public class Core {
       core.loadInputJavaFile(new File("test/SystemOnTest.java"));
       core.createTestSystem();
       core.compile();
-      core.runJPFSymbc();
-      core.processJPFOutput();
+      core.runJPF();
 
-      {
-        Logger.outlnInDevMode("TESTING: Error check constraint: if this is SAT, there should be error(s)");
-        CNFClause errorCheckConstraint = core.jpfOutputProcessor.getErrorCheckConstraint();
-        Logger.outlnInDevMode(errorCheckConstraint.getUserFriendlyString() + "\n");
-        Logger.outlnInDevMode(errorCheckConstraint.getSMTDeclare());
-        Logger.outlnInDevMode(errorCheckConstraint.getSMTAsserts());
-      }
+      // Testing
+      Logger.outln("===================General check==================");
+      core.checkErrors();
 
-      {
-        Logger.outlnInDevMode("TESTING: # Paths: " + core.jpfOutputProcessor.pathConstraints.size());
-        for (PathConstraint path : core.jpfOutputProcessor.pathConstraints) {
-          Logger.outlnInDevMode(path.getUserFriendlyString());
-          Logger.outlnInDevMode(path.getSMTAsserts());
-          Logger.out();
-        }
-      }
-      {
+      Logger.outln("==================Conditional check===============");
+      core.checkErrors("((a > 9) && ( b > a))");
 
-      }
     } catch (Exception e) {
       e.printStackTrace();
+    }
+  }
+
+  public void checkErrors() throws IOException {
+    {
+      Logger.outlnInDevMode("TESTING: Error check constraint: if this is SAT, there should be error(s)");
+      CNFClause errorCheckConstraint = jpfOutput.getErrorCheckConstraint();
+      Logger.outlnInDevMode(errorCheckConstraint.getUserFriendlyString() + "\n");
+      Logger.outlnInDevMode(errorCheckConstraint.getSMTDeclare());
+      Logger.outlnInDevMode(errorCheckConstraint.getSMTAsserts());
+
+      StringBuilder sb = new StringBuilder();
+      sb.append(errorCheckConstraint.getSMTDeclare() + "\n");
+      sb.append(errorCheckConstraint.getSMTAsserts() + "\n");
+      sb.append("(check-sat)\n");
+      sb.append("(get-model)\n");
+
+      Logger.outln("SMT problems:\n" + sb);
+      String filename = workingDirPath.toString() + "\\smtLib.txt";
+      saveFile(filename, sb.toString());
+      Vector<String> z3result = Z3Output.runZ3(filename);
+      z3Output = Z3Output.z3OutputProcess(z3result);
+      switch (z3Output.s) {
+      case SATISFIABLE:
+        Logger.outln("Error may orcur with those input:");
+        Logger.outln(getStringZ3Model());
+        break;
+      case UNSATISFIABLE:
+        Logger.outln("Does not find any error!");
+      case UNKNOWN:
+        Logger.outln("Sorry, we does not know if there is any errors here.");
+        break;
+      default:
+        Logger.outln("Z3 Error run");
+        for (String s : z3result) {
+          Logger.outln(s);
+        }
+      }
+
+    }
+  }
+
+  public void checkErrors(String condition) throws IOException {
+    String preFix = InfixToPrefix.parse(condition);
+    if (preFix == null) {
+      Logger.outln("Cannot understand your condition.");
+      return;
+    }
+
+    preFix = preFix.replaceAll("&&", "and").replaceAll("\\|\\|", "or");
+
+    StringBuilder sb = new StringBuilder();
+    sb.append(jpfOutput.getDeclares() + "\n");
+    for (PathConstraint p : jpfOutput.pathConstraints) {
+      sb.append(p.getSMTAsserts() + "\n");
+    }
+    sb.append("(assert (" + preFix + "))\n");
+    sb.append("(check-sat)\n");
+    sb.append("(get-model)\n");
+
+    Logger.outln("SMT problems:\n" + sb);
+    String filename = workingDirPath.toString() + "\\smtLib.txt";
+    saveFile(filename, sb.toString());
+    Vector<String> z3result = Z3Output.runZ3(filename);
+    z3Output = Z3Output.z3OutputProcess(z3result);
+    if (z3Output.s != null)
+      switch (z3Output.s) {
+      case SATISFIABLE:
+        Logger.outln("Error may orcur with those input:");
+        Logger.outln(getStringZ3Model());
+        break;
+      case UNSATISFIABLE:
+        Logger.outln("Does not find any error!");
+      case UNKNOWN:
+        Logger.outln("Sorry, we does not know if there is any errors here.");
+        break;
+      default:
+        Logger.outln("Z3 Error run");
+        for (String s : z3result) {
+          Logger.outln(s);
+        }
+      }
+    else {
+      Logger.outln("Z3 Error run");
+      for (String s : z3result) {
+        Logger.outln(s);
+      }
     }
   }
 
@@ -139,7 +215,8 @@ public class Core {
     } else {
       File resourcesFolder = new File(workingDirPath.toString() + "\\resources");
       if (resourcesFolder.exists()) {
-        for (File f : resourcesFolder.listFiles()) {
+        File fs[] = resourcesFolder.listFiles();
+        for (File f : fs) {
           if (f.getName().compareTo("jpf.jar") == 0)
             continue;
           if (f.getName().compareTo("jpf-symbc-classes.jar") == 0)
@@ -150,8 +227,10 @@ public class Core {
           String[] filesList = new String[] { "jpf.jar", "jpf-symbc-classes.jar", "TesterAdapter.java", "UserTest.java" };
           for (String s : filesList) {
             File f = new File(workingDirPath.toString() + "\\resources\\" + s);
-            if (!f.exists())
-              FileUtils.copyFile(getFileResource("resources\\" + s), f);
+            if (f.exists()) {
+              f.delete();
+            }
+            FileUtils.copyFile(getFileResource("resources\\" + s), f);
           }
         } catch (IOException e) {
           Logger.outln("ERROR:\n" + e.getStackTrace().toString());
@@ -170,13 +249,15 @@ public class Core {
     }
   }
 
-  public void processJPFOutput() {
+  public void runJPF() {
+    String jpfOutputString = runJPFSymbc();
+    Logger.outln(jpfOutputString);
     Logger.outln("Processing output...");
-    jpfOutputProcessor = new JPFOutputProcesser(jpfOutput);
+    this.jpfOutput = new JPFOutput(jpfOutputString);
     Logger.outln("Processing output: done");
   }
 
-  public void runJPFSymbc() {
+  private String runJPFSymbc() {
     String fileJPF = workingDirPath + "\\resources\\Test.jpf";
     Logger.outln("Running Symbc on " + fileJPF);
     // Create a stream to hold the output
@@ -192,16 +273,27 @@ public class Core {
     // Put things back
     System.out.flush();
     System.setOut(oldOut);
-    jpfOutput = newOut.toString();
     Logger.outlnInDevMode(jpfOutput);
     Logger.outln("Running Symbc: DONE");
+    return newOut.toString();
+  }
+
+  public String getStringZ3Model() {
+    StringBuilder sb = new StringBuilder();
+    for (Declare d : z3Output.declares) {
+      for (Parameter p : method.parameters) {
+        if (p.name.compareTo(d.name) == 0)
+          sb.append(d + "\n");
+      }
+    }
+    return sb.toString();
   }
 
   public static String getTestableSourceCode(String originalSourceCode) {
     return originalSourceCode;
   }
 
-  public void compile() throws IOException {
+  public boolean compile() throws IOException {
     Logger.outln("Compiling...");
     String args[] = new String[5];
     String curDir = workingDirPath.toString() + "\\resources\\";
@@ -216,16 +308,17 @@ public class Core {
     } else {
       Logger.outln("Compiled failed");
     }
+    return result == 0;
   }
 
-  public void createTestSystem() {
+  public boolean createTestSystem() {
     Logger.outln("Creating Test System...");
     try {
       FileUtils.copyFile(inputFile, new File(workingDirPath.toString() + "\\SystemOnTest.java"));
     } catch (IOException e) {
       Logger.outln("ERROR:\n" + e.getStackTrace().toString());
       e.printStackTrace();
-      return;
+      return false;
     }
 
     // Create Test.jpf
@@ -240,7 +333,7 @@ public class Core {
       } catch (IOException e) {
         Logger.outln("ERROR:\n" + e.getStackTrace().toString());
         e.printStackTrace();
-        return;
+        return false;
       }
     }
 
@@ -257,16 +350,20 @@ public class Core {
 
         int a = -1, b = -1, c = -1, d = -1;
         for (int i = 0; i < lines.size(); i++) {
-          if (lines.elementAt(i).trim().contains("// CHECK_IN"))
+          String line = lines.elementAt(i).trim();
+          if (line.contains("// CHECK_IN"))
             a = i;
-          else if (lines.elementAt(i).trim().contains("// RUN_SYSTEM_TEST"))
+          else if (line.contains("// RUN_SYSTEM_TEST"))
             b = i;
-          else if (lines.elementAt(i).trim().contains("// CHECK_OUT"))
+          else if (line.contains("// CHECK_OUT"))
             c = i;
-          else if (lines.elementAt(i).trim().contains("// END_USER_CALL_METHOD"))
+          else if (line.contains("// END_USER_CALL_METHOD"))
             d = i;
         }
-        assert (a > 0 && b > a && c > b && d > c);
+        if (!(0 < a && a < b && b < c && c < d)) {
+          Logger.messageBox(a + " " + b + " " + c + " " + d);
+          return false;
+        }
         { // modify CHECK_IN
           for (int i = 0; i < b - a - 1; i++) {
             lines.remove(a + 1);
@@ -296,8 +393,6 @@ public class Core {
 
         String nameOfResult = "result";
         {
-          // modify RUN_SYSTEM_TEST
-
           // calculate nameOfResult
           while (true) {
             boolean b1 = false;
@@ -335,8 +430,8 @@ public class Core {
         } // end RUN_SYSTEM_TEST
 
         { // modify CHECK_OUT
-          for (int i = 0; i < d - c - 1; i++) {
-            lines.remove(c);
+          for (int i = 0; i < d - c - 2; i++) {
+            lines.remove(c + 1);
           }
           for (Parameter para : method.parameters) {
             String newLine = "    ";
@@ -385,10 +480,11 @@ public class Core {
       } catch (IOException e) {
         Logger.outln("ERROR:\n" + e.getStackTrace().toString());
         e.printStackTrace();
-        return;
+        return false;
       }
     }
     Logger.outln("Test System is created.");
+    return true;
   }
 
   public static String readFile(File inputFile) throws IOException {
@@ -396,7 +492,7 @@ public class Core {
     return new String(encoded);
   }
 
-  public void saveFile(String path, String content) throws IOException {
+  public static void saveFile(String path, String content) throws IOException {
     File fileDir = new File(path);
     Writer out = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(fileDir), "UTF8"));
     out.append(content);

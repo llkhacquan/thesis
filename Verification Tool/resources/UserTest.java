@@ -16,7 +16,7 @@ public class UserTest extends TesterAdapter {
     SystemOnTest system = new SystemOnTest();
     double result = 0;
     result = system.testMethod(a, b, c);
-
+    
     // CHECK_OUT
     checkOutReal(a, "a2");
     checkOutReal(b, "b2");

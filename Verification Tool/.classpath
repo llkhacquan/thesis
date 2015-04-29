@@ -21,5 +21,6 @@
 	<classpathentry kind="lib" path="libs/commons-io-2.4/commons-io-2.4.jar"/>
 	<classpathentry kind="lib" path="libs/jpf-symbc-classes.jar"/>
 	<classpathentry kind="lib" path="libs/jpf.jar"/>
+	<classpathentry kind="lib" path="libs/z3/com.microsoft.z3.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

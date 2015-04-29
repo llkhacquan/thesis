@@ -15,7 +15,6 @@ public class Clause extends ConstraintAdappter {
   public String clause;
 
   public Clause(String clause) {
-    assert (clause.contains("CHECK_I_") || clause.contains("CHECK_O_"));
     this.clause = clause;
   }
 
@@ -50,6 +49,23 @@ public class Clause extends ConstraintAdappter {
         assert (false);
       identifiers.add(i);
     }
+
+    currentPos = 0;
+    while (currentPos < clause.length()) {
+      int index = clause.indexOf("REAL", currentPos);
+      if (index < 0)
+        break;
+      currentPos = index;
+      while (currentPos < clause.length() && Character.isJavaIdentifierPart(clause.charAt(currentPos)))
+        currentPos++;
+      Term i = new Term();
+      String id = clause.substring(index, currentPos);
+      i.name = id;
+      i.output = true;
+      i.type = Term.Type.REAL;
+      identifiers.add(i);
+    }
+
     return identifiers;
   }
 

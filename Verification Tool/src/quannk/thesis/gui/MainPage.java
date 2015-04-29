@@ -20,8 +20,6 @@ import org.eclipse.swt.widgets.MessageBox;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.swt.widgets.Text;
 
-import quannk.thesis.constraint.CNFClause;
-import quannk.thesis.constraint.PathConstraint;
 import quannk.thesis.core.Core;
 import quannk.thesis.core.Logger;
 
@@ -32,6 +30,8 @@ public class MainPage {
 
   private Text textPathToOriginalSource;
   private StyledText consoleText;
+  private Text checkCondition;
+  protected String sourcePath;
 
   /**
    * Launch the application.
@@ -81,8 +81,8 @@ public class MainPage {
     console.writeln("  The file must be name as SystemOnTest.java and there must be one and only one public class named SystemOnTest");
     console.writeln("  The SystemOnTest object must be creatable by new SystemOnTest()");
     console.writeln("  The SystemOnTest class must have a public method named testMethod");
-    console.writeln("  The testMethod must have only int, double or boolean typed parameters.");
-    console.writeln("  The testMethod can return int, double, boolean or none (void) only");
+    console.writeln("  The testMethod must have only int or double typed parameters.");
+    console.writeln("  The testMethod can return int, double or none (void) only");
     console.writeln("  The SystemOnTest.java can be compiled by command: javac SystemOnTest.java");
   }
 
@@ -105,7 +105,7 @@ public class MainPage {
 
     Group grpSources = new Group(shell, SWT.NONE);
     grpSources.setText("Sources");
-    grpSources.setBounds(10, 0, 375, 193);
+    grpSources.setBounds(10, 0, 257, 193);
 
     textPathToOriginalSource = new Text(grpSources, SWT.BORDER);
     textPathToOriginalSource.setEditable(false);
@@ -123,16 +123,17 @@ public class MainPage {
         dialog.setFilterNames(filterNames);
         dialog.setFilterExtensions(filterExtensions);
         dialog.setFileName("");
-        String srtPath = dialog.open();
-        if (srtPath != null) {
-          core.loadInputJavaFile(new File(srtPath));
+        sourcePath = dialog.open();
+        if (sourcePath != null) {
+          core.copyResources();
+          core.loadInputJavaFile(new File(sourcePath));
           textPathToOriginalSource.setText(core.inputFile.getName());
         }
       }
     });
     textPathToOriginalSource.setText("Path to java test file");
     textPathToOriginalSource.setToolTipText("Double click to select original source");
-    textPathToOriginalSource.setBounds(10, 22, 355, 21);
+    textPathToOriginalSource.setBounds(10, 22, 237, 21);
 
     Group grpConsole = new Group(shell, SWT.NONE);
     grpConsole.setText("Console");
@@ -151,41 +152,57 @@ public class MainPage {
 
     Group grpVerificator = new Group(shell, SWT.NONE);
     grpVerificator.setText("Verificator");
-    grpVerificator.setBounds(399, 0, 375, 193);
+    grpVerificator.setBounds(273, 0, 501, 193);
 
     Button btnStartVerification = new Button(grpVerificator, SWT.NONE);
     btnStartVerification.addSelectionListener(new SelectionAdapter() {
       @Override
       public void widgetSelected(SelectionEvent e) {
         try {
-          core.createTestSystem();
-          core.compile();
-          core.runJPFSymbc();
-          core.processJPFOutput();
-          {
-            Logger.outlnInDevMode("============================\n\nError check constraint: if this is SAT, there should be error(s)");
-            CNFClause errorCheckConstraint = core.jpfOutputProcessor.getErrorCheckConstraint();
-            Logger.outlnInDevMode(errorCheckConstraint.getUserFriendlyString() + "\n");
-            Logger.outlnInDevMode(errorCheckConstraint.getSMTDeclare());
-            Logger.outlnInDevMode(errorCheckConstraint.getSMTAsserts());
+          core.copyResources();
+          core.loadInputJavaFile(new File(sourcePath));
+          if (!core.createTestSystem()) {
+            return;
           }
-
-          {
-            Logger.outlnInDevMode("============================\n\nNumber of Execution paths: " + core.jpfOutputProcessor.pathConstraints.size());
-            for (PathConstraint path : core.jpfOutputProcessor.pathConstraints) {
-              Logger.outlnInDevMode(path.getUserFriendlyString());
-              Logger.outlnInDevMode(path.getSMTAsserts());
-              Logger.out();
-            }
-          }
+          if (!core.compile())
+            return;
+          core.runJPF();
+          core.checkErrors();
         } catch (IOException e1) {
           console.writeln(e1.getStackTrace());
           e1.printStackTrace();
         }
       }
     });
-    btnStartVerification.setBounds(10, 20, 159, 25);
-    btnStartVerification.setText("Start Verification");
-  }
+    btnStartVerification.setBounds(10, 20, 176, 25);
+    btnStartVerification.setText("Find Errors Caused By Input");
 
+    checkCondition = new Text(grpVerificator, SWT.BORDER);
+    checkCondition.setBounds(10, 84, 481, 21);
+
+    Button btnCheckPosibleOutcome = new Button(grpVerificator, SWT.NONE);
+    btnCheckPosibleOutcome.addSelectionListener(new SelectionAdapter() {
+      @Override
+      public void widgetSelected(SelectionEvent e) {
+        try {
+          core.copyResources();
+          core.loadInputJavaFile(new File(sourcePath));
+          if (!core.createTestSystem()) {
+            return;
+          }
+          if (!core.compile())
+            return;
+          core.runJPF();
+
+          String condition = checkCondition.getText();
+          core.checkErrors(condition);
+        } catch (IOException e1) {
+          console.writeln(e1.getStackTrace());
+          e1.printStackTrace();
+        }
+      }
+    });
+    btnCheckPosibleOutcome.setBounds(207, 20, 284, 25);
+    btnCheckPosibleOutcome.setText("Check posible outcome conditions");
+  }
 }

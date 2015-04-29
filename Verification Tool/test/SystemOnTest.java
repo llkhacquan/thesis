@@ -1,8 +1,8 @@
 public class SystemOnTest {
-  int testMethod(boolean a, int b, int c) {
-    if (a)
-      return c / (b + c);
+  int testMethod(int a, int b) {
+    if (a > b && b > 1)
+      return a / (b - 2);
     else
-      return c + b;
+      return a + b;
   }
 }
