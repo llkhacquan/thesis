@@ -7,6 +7,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 import quannk.thesis.convert.InfixToPrefix;
+import quannk.thesis.convert.ParseException;
 
 // Each term in clause must begin with CHECKIN_PREFIX or CHECKOUT_PREFIX
 // Identifiers must be composed of letters, numbers, the underscore _ and the dollar sign $. 
@@ -86,6 +87,11 @@ public class Clause extends ConstraintAdappter {
 
   @Override
   public String convertToPrefix() {
-    return InfixToPrefix.parse(getUserFriendlyString());
+    try {
+      return InfixToPrefix.parse(getUserFriendlyString());
+    } catch (ParseException e) {
+      e.printStackTrace();
+      return null;
+    }
   }
 }

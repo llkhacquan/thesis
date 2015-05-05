@@ -31,10 +31,6 @@ public class Logger {
     else
       console.write(content);
   }
-
-  public static void out() {
-    out("\n");
-  }
   
   public static void messageBox(Object o){
     if (mainPage!=null){

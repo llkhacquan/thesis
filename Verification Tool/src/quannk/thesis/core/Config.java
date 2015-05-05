@@ -4,7 +4,7 @@ import java.net.URL;
 
 public final class Config {
   public final boolean RUN_FROM_JAR_FILE;
-  public static final boolean DEVELOP_MODE = true;
+  public static boolean DEVELOP_MODE = true;
 
   private static Config config = null;
 

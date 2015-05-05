@@ -10,6 +10,13 @@ public class TesterAdapter {
   static final public String CHECKOUT_PREFIX_R = "CHECK_O_R_";
   static final public String CHECKOUT_PREFIX_B = "CHECK_O_B_";
 
+  protected void getPreConditions() {
+    Debug.printPC("path ");
+  }
+
+  protected void getPostConditions() {
+  }
+
   protected int checkInInteger(String name) {
     return Debug.makeSymbolicInteger(CHECKIN_PREFIX_I + name);
   }

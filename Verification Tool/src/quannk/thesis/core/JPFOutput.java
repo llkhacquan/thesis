@@ -24,6 +24,14 @@ public class JPFOutput {
     return result;
   }
 
+  public Clause getPreConstraintOfCode() {
+    StringBuilder sb = new StringBuilder();
+    for (PathConstraint path : pathConstraints) {
+      sb.append(" || (" + path.preConditions.toString() + ")");
+    }
+    return new Clause(sb.substring(4));
+  }
+
   public String getDeclares() {
     Set<String> declares = new HashSet<String>();
     Set<Term> terms = new HashSet<Term>();
@@ -46,23 +54,23 @@ public class JPFOutput {
 
     PathConstraint currentPath = null;
     for (int iLine = 0; iLine < lines.length; iLine++) {
-      if (lines[iLine].startsWith("CHECK_O")) {
-        String checkOutString = lines[iLine].trim();
-        if (currentPath == null)
-          currentPath = new PathConstraint();
-        currentPath.postConditions.clauses.add(new Clause(checkOutString));
-      } else if (lines[iLine].startsWith("path constraint # = ")) {
+      if (lines[iLine].startsWith("path constraint # = ")) {
+        currentPath = new PathConstraint();
         int constraintNumber = Integer.parseInt(lines[iLine].substring("path constraint # = ".length()));
         for (int iConstrain = 0; iConstrain < constraintNumber; iConstrain++) {
           iLine++;
-          String constrainString = lines[iLine].replaceAll(" &&", "").replaceAll("%NonLinInteger% ", "");
+          String constrainString = lines[iLine].replaceAll(" &&", "").replaceAll("%NonLinInteger% ", "").trim();
           currentPath.preConditions.clauses.add(new Clause(constrainString));
         }
         pathConditions.add(currentPath);
-        currentPath = null;
-      } else {
-
       }
+      if (lines[iLine].startsWith("CHECK_O")) {
+        String constrainString = lines[iLine].trim();
+        currentPath.postConditions.clauses.add(new Clause(constrainString));
+      }
+    }
+    for (PathConstraint p:pathConditions){
+      p.removeTempRealAndInt();
     }
     return pathConditions;
   }

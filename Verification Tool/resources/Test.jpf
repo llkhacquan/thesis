@@ -1,5 +1,11 @@
+# PROGRAM OPTIONS 
 target=UserTest
 classpath=resources
 sourcepath=resources
+
+# USER OPTIONS
 search.multiple_errors=true
 symbolic.dp=coral
+report.html.finished=
+report.console.property_violation=statistics
+report.console.probe=

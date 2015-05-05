@@ -4,6 +4,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 import quannk.thesis.convert.InfixToPrefix;
+import quannk.thesis.convert.ParseException;
 
 public class ConstraintAdappter implements IConstraint {
 
@@ -24,7 +25,13 @@ public class ConstraintAdappter implements IConstraint {
 
   @Override
   public String convertToPrefix() {
-    return InfixToPrefix.parse(getUserFriendlyString());
+    try {
+      return InfixToPrefix.parse(getUserFriendlyString());
+    } catch (ParseException e) {
+      // TODO Auto-generated catch block
+      e.printStackTrace();
+    }
+    return null;
   }
 
   @Override
