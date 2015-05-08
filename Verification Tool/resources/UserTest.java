@@ -16,7 +16,6 @@ public class UserTest extends TesterAdapter {
     SystemOnTest system = new SystemOnTest();
     double result = 0;
     result = system.testMethod(a, b, c);
-    getPreConditions();
     
     // CHECK_OUT
     checkOutReal(a, "a2");
@@ -24,5 +23,6 @@ public class UserTest extends TesterAdapter {
     checkOutReal(c, "c2");
     checkOutReal(result, "result");
     // END_USER_CALL_METHOD
+    getPreConditions();
   }
 }

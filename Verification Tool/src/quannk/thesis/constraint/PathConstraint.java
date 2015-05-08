@@ -44,18 +44,4 @@ public class PathConstraint extends ConstraintAdappter {
     }
     return null;
   }
-
-  public void removeTempRealAndInt() {
-    // Vector<Clause> clauses = new Vector<Clause>();
-    // clauses.addAll(preConditions.clauses);
-    // clauses.addAll(postConditions.clauses);
-    for (Clause c : preConditions.clauses) {
-      if (c.toString().contains("REAL_")) {
-        String ss[] = c.toString().split(" ");
-        if (ss.length == 3 && ss[1].startsWith("=")) {
-          
-        }
-      }
-    }
-  }
 }

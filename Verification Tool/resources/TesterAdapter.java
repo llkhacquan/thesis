@@ -14,9 +14,6 @@ public class TesterAdapter {
     Debug.printPC("path ");
   }
 
-  protected void getPostConditions() {
-  }
-
   protected int checkInInteger(String name) {
     return Debug.makeSymbolicInteger(CHECKIN_PREFIX_I + name);
   }

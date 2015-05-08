@@ -11,6 +11,7 @@ import java.io.Writer;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Scanner;
 import java.util.Vector;
@@ -26,6 +27,7 @@ import quannk.thesis.convert.InfixToPrefix;
 import quannk.thesis.convert.ParseException;
 import quannk.thesis.core.TestMethod.Parameter;
 import quannk.thesis.core.Z3Output.Declare;
+import quannk.thesis.core.javaparser.JavaParser;
 
 public class Core {
   public Path workingDirPath;
@@ -54,7 +56,7 @@ public class Core {
       core.checkErrors();
 
       Logger.outln("==================Conditional check===============");
-      core.checkErrors("(a > 9) && ( b > a)");
+      core.checkErrors("(a > 1) && ( b > a)");
 
     } catch (Exception e) {
       e.printStackTrace();
@@ -78,8 +80,6 @@ public class Core {
       Logger.outlnInDevMode("TESTING: Error check constraint: if this is SAT, there should be error(s)");
       CNFClause errorCheckConstraint = jpfOutput.getErrorCheckConstraint();
       Logger.outlnInDevMode(errorCheckConstraint.getUserFriendlyString() + "\n");
-      Logger.outlnInDevMode(errorCheckConstraint.getSMTDeclare());
-      Logger.outlnInDevMode(errorCheckConstraint.getSMTAsserts());
 
       StringBuilder sb = new StringBuilder("(set-option :timeout 10000)\n");
       sb.append(errorCheckConstraint.getSMTDeclare() + "\n");
@@ -339,16 +339,53 @@ public class Core {
 
   public boolean createTestSystem() {
     Logger.outlnInDevMode("Creating Test System...");
+
+    /* COPY AND MODIFY INPUT FILE */
     try {
-      FileUtils.copyFile(inputFile, new File(workingDirPath.toString() + "\\SystemOnTest.java"));
-    } catch (IOException e) {
-      Logger.outln("Error when create test system...");
+      String source = readFile(inputFile);
+      Logger.outln("content of input file");
+      source = JavaParser.parse(source);
+      Vector<String> sourceLines = new Vector<String>();
+      sourceLines.addAll(Arrays.asList(source.split("\n")));
+      for (int index = 0; index < sourceLines.size(); index++) {
+        if (sourceLines.elementAt(index).contains("/*CHECK_OUT*/")) {
+          String checkOut = "";
+          for (Parameter para : method.parameters) {
+            switch (para.type) {
+            case INT:
+              checkOut += "checkOutInteger";
+              break;
+            case DOUBLE:
+              checkOut += "checkOutReal";
+              break;
+            case BOOLEAN:
+              checkOut += "checkOutBoolean";
+              break;
+            default:
+              assert (false);
+            }
+            checkOut += "(" + para.name + ", \"" + para.name + "2\");";
+          }
+          sourceLines.set(index, sourceLines.elementAt(index).replace("/*CHECK_OUT*/", checkOut));
+        }
+      }
+      
+      {
+        StringBuilder sb = new StringBuilder();
+        for (String s:sourceLines)
+          sb.append(s + "\n");
+        source = sb.toString();
+      }
+      
+      saveFile(workingDirPath.toString() + "\\resources\\SystemOnTest.java", source);
+    } catch (IOException | quannk.thesis.core.javaparser.ParseException e) {
+      Logger.outln("Error when copy and modify input file...");
       Logger.outlnInDevMode("ERROR:\n" + e.getStackTrace().toString());
       e.printStackTrace();
       return false;
     }
 
-    // Create Test.jpf
+    /* Create Test.jpf */
     {
       String[] testJPFContent = readFile(getFileResource("Test.jpf")).split("\n");
       StringBuilder test_jpf = new StringBuilder();
@@ -459,28 +496,6 @@ public class Core {
             lines.remove(c + 1);
           }
 
-          for (int i = 0; i < lines.size(); i++) {
-            System.out.println(i + "\t" + lines.elementAt(i));
-          }
-
-          for (Parameter para : method.parameters) {
-            String newLine = "    ";
-            switch (para.type) {
-            case INT:
-              newLine += "checkOutInteger";
-              break;
-            case DOUBLE:
-              newLine += "checkOutReal";
-              break;
-            case BOOLEAN:
-              newLine += "checkOutBoolean";
-              break;
-            default:
-              assert (false);
-            }
-            newLine += "(" + para.name + ", \"" + para.name + "2\");";
-            lines.insertElementAt(newLine, c + 1);
-          }
           if (method.returnType.toString().compareTo("void") != 0) {
             String newLine = "    ";
             switch (method.returnType) {
@@ -529,6 +544,16 @@ public class Core {
       return new String(encoded);
     else
       return null;
+  }
+
+  public static void saveFile(String path, Object[] objects) throws IOException {
+    File fileDir = new File(path);
+    Writer out = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(fileDir), "UTF8"));
+    for (Object s : objects) {
+      out.append(s + "\n");
+    }
+    out.flush();
+    out.close();
   }
 
   public static void saveFile(String path, String content) throws IOException {

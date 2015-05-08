@@ -47,30 +47,111 @@ public class JPFOutput {
     return sb.toString();
   }
 
-  private static Vector<PathConstraint> extractPathConditions(String jpfOutput) {
-    String[] lines = jpfOutput.replaceAll("\n\r", "\n").replaceAll("\r\n", "\n").replaceAll("CONST_", "").split("\n");
+  private static class RealConstant {
+    int number;
+    String value;
 
-    Vector<PathConstraint> pathConditions = new Vector<PathConstraint>();
+    public RealConstant(int n, String v) {
+      number = n;
+      value = v;
+    }
 
-    PathConstraint currentPath = null;
-    for (int iLine = 0; iLine < lines.length; iLine++) {
-      if (lines[iLine].startsWith("path constraint # = ")) {
-        currentPath = new PathConstraint();
-        int constraintNumber = Integer.parseInt(lines[iLine].substring("path constraint # = ".length()));
-        for (int iConstrain = 0; iConstrain < constraintNumber; iConstrain++) {
-          iLine++;
-          String constrainString = lines[iLine].replaceAll(" &&", "").replaceAll("%NonLinInteger% ", "").trim();
-          currentPath.preConditions.clauses.add(new Clause(constrainString));
+    public String getName() {
+      return "REAL_" + number;
+    }
+
+    public String getValue() {
+      return value;
+    }
+  }
+
+  private static Vector<RealConstant> reals = new Vector<RealConstant>();
+
+  private static Vector<String> extractPreConditions(String constraints) {
+    Vector<String> result = new Vector<String>();
+    String[] lines = constraints.split("\n");
+
+    for (int i = 0; i < lines.length; i++) {
+      String[] ss = lines[i].split(" == ");
+      if (ss.length == 2) {
+        int n = -1;
+        String v = null;
+        if (ss[0].contains("REAL_")) {
+          n = Integer.parseInt(ss[0].substring(5));
+          v = ss[1];
+        } else if (ss[1].contains("REAL_")) {
+          n = Integer.parseInt(ss[1].substring(5));
+          v = ss[0];
         }
-        pathConditions.add(currentPath);
-      }
-      if (lines[iLine].startsWith("CHECK_O")) {
-        String constrainString = lines[iLine].trim();
-        currentPath.postConditions.clauses.add(new Clause(constrainString));
+
+        if (n >= 0) {
+          boolean existed = false;
+          for (RealConstant real : reals) {
+            if (real.number == n) {
+              existed = true;
+              break;
+            }
+          }
+          if (!existed) {
+            reals.add(new RealConstant(n, v));
+            lines[i] = "";
+          } else {
+            for (RealConstant real : reals) {
+              lines[i] = lines[i].replace(real.getName(), real.getValue());
+            }
+          }
+        }
       }
     }
-    for (PathConstraint p:pathConditions){
-      p.removeTempRealAndInt();
+
+    for (int i = 0; i < lines.length; i++) {
+      for (RealConstant real : reals) {
+        lines[i] = lines[i].replaceAll(real.getName(), real.getValue());
+      }
+      if (lines[i].length() > 0)
+        result.add(lines[i]);
+    }
+    return result;
+  }
+
+  private static Vector<PathConstraint> extractPathConditions(String jpfOutput) {
+    String[] lines = jpfOutput.replaceAll("\n\r", "\n").replaceAll("\r\n", "\n").replaceAll("CONST_", "").split("\n");
+    Vector<PathConstraint> pathConditions = new Vector<PathConstraint>();
+    PathConstraint currentPath = null;
+
+    String preCondition = null;
+    String postCondition = null;
+
+    for (int iLine = 0; iLine < lines.length; iLine++) {
+      if (lines[iLine].startsWith("CHECK_O")) {
+        if (currentPath == null) {
+          currentPath = new PathConstraint();
+          pathConditions.add(currentPath);
+          reals.clear();
+          postCondition = "";
+          preCondition = "";
+        }
+        String constrainString = lines[iLine].trim();
+        postCondition += constrainString + "\n";
+      } else if (lines[iLine].startsWith("path constraint # = ")) {
+        int constraintNumber = Integer.parseInt(lines[iLine].substring("path constraint # = ".length()));
+        preCondition = "";
+        for (int iConstrain = 0; iConstrain < constraintNumber; iConstrain++) {
+          iLine++;
+          preCondition += lines[iLine].replaceAll(" &&", "").replaceAll("%NonLinInteger% ", "").trim() + "\n";
+        }
+        Vector<String> ss = extractPreConditions(preCondition);
+        for (String s : ss)
+          currentPath.preConditions.clauses.add(new Clause(s));
+        for (String line : postCondition.split("\n")) {
+          for (RealConstant real : reals) {
+            line = line.replaceAll(real.getName(), real.getValue());
+          }
+          currentPath.postConditions.clauses.add(new Clause(line));
+        }
+        Logger.outlnInDevMode(currentPath + "\n");
+        currentPath = null;
+      }
     }
     return pathConditions;
   }
