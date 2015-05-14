@@ -1,6 +1,5 @@
 package quannk.thesis.core;
 
-
 public class TestMethod {
   enum Type {
     VOID, INT, BOOLEAN, DOUBLE;

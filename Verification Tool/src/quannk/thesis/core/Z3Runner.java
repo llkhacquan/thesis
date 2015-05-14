@@ -7,7 +7,6 @@ import com.microsoft.z3.AST;
 import com.microsoft.z3.BoolExpr;
 import com.microsoft.z3.Context;
 import com.microsoft.z3.Expr;
-import com.microsoft.z3.Log;
 import com.microsoft.z3.Model;
 import com.microsoft.z3.Solver;
 import com.microsoft.z3.Status;
@@ -29,7 +28,7 @@ public class Z3Runner {
       q.add(a);
       int cnt = 0;
       while (q.size() > 0) {
-        AST cur = (AST) q.removeFirst();
+        AST cur = q.removeFirst();
         cnt++;
         if (cur.getClass() == Expr.class)
           if (!(cur.isVar()))

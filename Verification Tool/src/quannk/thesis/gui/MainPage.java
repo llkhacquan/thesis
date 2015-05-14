@@ -16,6 +16,7 @@ import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Event;
 import org.eclipse.swt.widgets.FileDialog;
 import org.eclipse.swt.widgets.Group;
+import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Listener;
 import org.eclipse.swt.widgets.MessageBox;
 import org.eclipse.swt.widgets.Shell;
@@ -24,8 +25,6 @@ import org.eclipse.swt.widgets.Text;
 import quannk.thesis.core.Config;
 import quannk.thesis.core.Core;
 import quannk.thesis.core.Logger;
-
-import org.eclipse.swt.widgets.Label;
 
 public class MainPage {
   protected Core core;
@@ -74,7 +73,7 @@ public class MainPage {
   private void onOpen() throws Exception {
     // Setting console
     console = Console.getConsole(consoleText);
-    Config.DEVELOP_MODE = btnDevelopmentMode.getSelection(); 
+    Config.DEVELOP_MODE = btnDevelopmentMode.getSelection();
     Logger.setGUI(this);
 
     // Setting core
@@ -88,7 +87,7 @@ public class MainPage {
       for (String s : restriction) {
         console.writeln("  " + s);
       }
-      
+
       console.writeln("\n===========================================================================\n");
     }
   }
@@ -166,7 +165,7 @@ public class MainPage {
       @Override
       public void widgetSelected(SelectionEvent e) {
         try {
-          if (sourcePath==null){
+          if (sourcePath == null) {
             Logger.messageBox("Select an input java file first");
             textPathToOriginalSource.notifyListeners(SWT.MouseDoubleClick, null);
             return;
@@ -217,15 +216,15 @@ public class MainPage {
     });
     btnCheckPosibleOutcome.setBounds(207, 20, 284, 25);
     btnCheckPosibleOutcome.setText("Check posible outcome conditions");
-    
+
     Label lblNewLabel = new Label(grpVerificator, SWT.NONE);
     lblNewLabel.setBounds(10, 63, 224, 15);
     lblNewLabel.setText("Verification condition");
-    
+
     Group grpOptions = new Group(shell, SWT.NONE);
     grpOptions.setText("Options");
     grpOptions.setBounds(10, 78, 257, 54);
-    
+
     btnDevelopmentMode = new Button(grpOptions, SWT.CHECK);
     btnDevelopmentMode.addSelectionListener(new SelectionAdapter() {
       @Override

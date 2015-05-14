@@ -2,7 +2,6 @@ package quannk.thesis.constraint;
 
 import java.util.HashSet;
 import java.util.Set;
-import java.util.Vector;
 
 import quannk.thesis.convert.InfixToPrefix;
 import quannk.thesis.convert.ParseException;

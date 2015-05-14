@@ -31,9 +31,9 @@ public class Logger {
     else
       console.write(content);
   }
-  
-  public static void messageBox(Object o){
-    if (mainPage!=null){
+
+  public static void messageBox(Object o) {
+    if (mainPage != null) {
       mainPage.createMessageBox(o);
     } else {
       outln(o);

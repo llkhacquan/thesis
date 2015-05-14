@@ -29,11 +29,13 @@ public class Z3Output {
       return true;
     }
 
+    @Override
     public String toString() {
       return name + " = " + value;
     }
   }
 
+  @Override
   public String toString() {
     StringBuilder sb = new StringBuilder();
     for (Declare d : declares) {
