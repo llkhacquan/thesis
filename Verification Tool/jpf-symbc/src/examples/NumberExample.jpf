@@ -1,0 +1,9 @@
+target=NumberExample
+
+symbolic.method=NumberExample.run(sym)
+
+classpath=${jpf-symbc}/build/examples
+
+symbolic.debug=true
+
+listener = gov.nasa.jpf.symbc.SymbolicListener

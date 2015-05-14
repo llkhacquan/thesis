@@ -74,7 +74,7 @@ public class Z3Output {
 
   public static Vector<String> runZ3(String filename) throws IOException {
     Vector<String> result = new Vector<String>();
-    String pathToZ3 = "C:\\Users\\wind\\Desktop\\z3\\bin\\z3.exe";
+    String pathToZ3 = "z3\\bin\\z3.exe";
     ProcessBuilder builder = new ProcessBuilder("cmd.exe", "/c", pathToZ3 + " -smt2 " + filename);
     builder.redirectErrorStream(true);
     Process p = builder.start();
